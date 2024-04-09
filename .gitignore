@@ -1,0 +1,4 @@
+*.hzs
+*Flash Debug
+*Flash Release
+.svn
