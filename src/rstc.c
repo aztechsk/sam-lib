@@ -1,7 +1,7 @@
 /*
  * rstc.c
  *
- * Copyright (c) 2020 Jan Rusnak <jan@rusnak.sk>
+ * Copyright (c) 2024 Jan Rusnak <jan@rusnak.sk>
  *
  * Permission to use, copy, modify, and distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -32,7 +32,7 @@
 #define CR_KEY (RSTC_CR_KEY_Msk & (0xA5 << RSTC_CR_KEY_Pos))
 
 #if TERMOUT == 1
-static const char *rst_type_arr[] = {"PWR", "BKP", "WTD", "SW", "USR"};
+static const char *const rst_type_arr[] = {"PWR", "BKP", "WTD", "SW", "USR"};
 #endif
 
 static unsigned int sr;
@@ -79,7 +79,13 @@ void soft_rst(void)
  */
 const char *rst_cause_str(void)
 {
-	return (rst_type_arr[(sr & RSTC_SR_RSTTYP_Msk) >> RSTC_SR_RSTTYP_Pos]);
+	int i = (sr & RSTC_SR_RSTTYP_Msk) >> RSTC_SR_RSTTYP_Pos;
+
+	if (i < 5) {
+		return (rst_type_arr[i]);
+	} else {
+		return ("err");
+	}
 }
 
 /**
