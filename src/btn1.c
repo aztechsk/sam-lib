@@ -1,7 +1,7 @@
 /*
  * btn1.c
  *
- * Copyright (c) 2023 Jan Rusnak <jan@rusnak.sk>
+ * Copyright (c) 2024 Jan Rusnak <jan@rusnak.sk>
  *
  * Permission to use, copy, modify, and distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -209,6 +209,20 @@ lab1:
  */
 static void conf_btn_pin(btn1 b)
 {
+#if BTN1_CONF_PULL_RES == 1
+	if (b->pull_res) {
+		if (b->active_lev == LOW) {
+			conf_io_pin(b->pin, b->cont, PIO_INPUT, PIO_PULL_UP_ON, PIO_DEBOUNCE_FILTER_ON,
+				    PIO_LOW_LEVEL_INTR, PIO_END_OF_FEAT);
+		} else {
+			conf_io_pin(b->pin, b->cont, PIO_INPUT, PIO_PULL_DOWN_ON, PIO_DEBOUNCE_FILTER_ON,
+				    PIO_HIGH_LEVEL_INTR, PIO_END_OF_FEAT);
+		}
+	} else {
+		conf_io_pin(b->pin, b->cont, PIO_INPUT, PIO_PULL_UP_OFF, PIO_PULL_DOWN_OFF, PIO_DEBOUNCE_FILTER_ON,
+			    PIO_LOW_LEVEL_INTR, PIO_END_OF_FEAT);
+	}
+#else
 	if (b->active_lev == LOW) {
 		conf_io_pin(b->pin, b->cont, PIO_INPUT, PIO_PULL_UP_ON, PIO_DEBOUNCE_FILTER_ON,
 			    PIO_LOW_LEVEL_INTR, PIO_END_OF_FEAT);
@@ -216,6 +230,7 @@ static void conf_btn_pin(btn1 b)
 		conf_io_pin(b->pin, b->cont, PIO_INPUT, PIO_PULL_DOWN_ON, PIO_DEBOUNCE_FILTER_ON,
 			    PIO_HIGH_LEVEL_INTR, PIO_END_OF_FEAT);
 	}
+#endif
 }
 
 #if PIOA_INTR == 1

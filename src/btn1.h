@@ -1,7 +1,7 @@
 /*
  * btn1.h
  *
- * Copyright (c) 2023 Jan Rusnak <jan@rusnak.sk>
+ * Copyright (c) 2024 Jan Rusnak <jan@rusnak.sk>
  *
  * Permission to use, copy, modify, and distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -25,6 +25,10 @@
 
 #if BTN1 == 1
 
+#ifndef BTN1_CONF_PULL_RES
+  #define BTN1_CONF_PULL_RES 0
+#endif
+
 typedef struct btn1_dsc *btn1;
 
 enum btn_mode {
@@ -37,6 +41,9 @@ struct btn1_dsc {
 	Pio *cont; // <SetIt>
 	enum btn_mode mode; // <SetIt>
 	boolean_t active_lev; // <SetIt>
+#if BTN1_CONF_PULL_RES == 1
+	boolean_t pull_res; // <SetIt>
+#endif
         int evnt_que_size; // <SetIt>
 #if configUSE_QUEUE_SETS == 1
 	QueueSetHandle_t qset; // <SetIt>
