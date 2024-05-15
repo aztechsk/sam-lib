@@ -1,7 +1,7 @@
 /*
  * spi.h
  *
- * Copyright (c) 2020 Jan Rusnak <jan@rusnak.sk>
+ * Copyright (c) 2024 Jan Rusnak <jan@rusnak.sk>
  *
  * Permission to use, copy, modify, and distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -99,13 +99,13 @@ struct spim_csel_dcs {
 	boolean_t csrise;
         // <SetIt> TRUE - interrupt, FALSE - polling in non DMA mode.
 	boolean_t no_dma_intr;
+	// <SetIt> TRUE - chip select line is driven externally (SPI mutex not used).
+	boolean_t csel_ext;
 #if SPIM_CSEL_LINE_ERR == 1
 	// <SetIt> Chip select io line.
 	unsigned int csel_pin;
         // <SetIt> Chip select io controller.
         void *csel_cont;
-	// <SetIt> TRUE - chip select line is driven externally (SPI mutex not used).
-	boolean_t csel_ext;
 #endif
 	int bufn;
 	boolean_t dma;
