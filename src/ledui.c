@@ -481,7 +481,6 @@ void ledui_led_hw_on(enum ledui_board_leds pos)
 		break;
 	}
 }
-#endif
 
 #if LEDUI_SLEEP == 1
 /**
@@ -501,4 +500,6 @@ static void sleep_clbk(enum sleep_cmd cmd, ...)
 		}
 	}
 }
+#endif
+
 #endif
