@@ -107,7 +107,7 @@ void init_spim(spim spi)
 	((Spi *) spi->mmio)->SPI_PTCR = SPI_PTCR_RXTDIS | SPI_PTCR_TXTDIS;
 	((Spi *) spi->mmio)->SPI_IDR = ~0;
 	NVIC_ClearPendingIRQ(spi->id);
-	((Spi *) spi->mmio)->SPI_MR = SPI_MR_MODFDIS | SPI_MR_MSTR;
+	((Spi *) spi->mmio)->SPI_MR = SPI_MR_DLYBCS(spi->dlybcs) | SPI_MR_MODFDIS | SPI_MR_MSTR;
 	NVIC_SetPriority(spi->id, configLIBRARY_MAX_API_CALL_INTERRUPT_PRIORITY);
 	NVIC_EnableIRQ(spi->id);
 	disable_periph_clk(spi->id);

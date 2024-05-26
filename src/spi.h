@@ -64,12 +64,16 @@ typedef struct spim_csel_dcs *spim_csel;
 
 struct spim_dsc {
 	int id;  // <SetIt>
-	void *mmio;
         SemaphoreHandle_t mtx; // <SetIt> Mutex or NULL.
+	int dlybcs; // <SetIt> Delay between chipselects (spim_dlybcs()).
+	void *mmio;
         SemaphoreHandle_t sig;
         spim_csel act_csel;
 	struct spim_stats stats;
 };
+
+#define spim_dlybcs_ns(dly) (((dly) * (F_MCK / 1000000)) / 1000)
+#define spim_dlybcs_us(dly) ((dly) * (F_MCK / 1000000))
 
 #define spim_dlybct_ns(dly) (((dly) * (F_MCK / 1000000)) / 32000)
 #define spim_dlybct_us(dly) (((dly) * (F_MCK / 1000000)) / 32)
