@@ -1,7 +1,7 @@
 /*
  * shift165.c
  *
- * Copyright (c) 2020 Jan Rusnak <jan@rusnak.sk>
+ * Copyright (c) 2024 Jan Rusnak <jan@rusnak.sk>
  *
  * Permission to use, copy, modify, and distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -111,11 +111,11 @@ static BaseType_t tc_hndlr(void)
 
 	sr = SHIFT165_TDV->TC_CHANNEL[tc_chnl(SHIFT165_TID)].TC_SR;
 	switch (state) {
-	case LOAD_REG    :
+	case LOAD_REG :
 		set_pin_lev(act_dev->pl_pin, act_dev->pl_cont, HIGH);
                 state = READ_BIT7;
 		break;
-	case READ_BIT7   :
+	case READ_BIT7 :
 		bit = 1;
 		if (get_pin_lev(act_dev->q_pin, act_dev->q_cont)) {
 			reg = 1;
@@ -125,7 +125,7 @@ static BaseType_t tc_hndlr(void)
 		set_pin_lev(act_dev->cp_pin, act_dev->cp_cont, HIGH);
                 state = SIG_CP_LOW;
 		break;
-	case SIG_CP_LOW  :
+	case SIG_CP_LOW :
 		bit++;
 		reg <<= 1;
 		if (get_pin_lev(act_dev->q_pin, act_dev->q_cont)) {

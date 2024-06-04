@@ -1,7 +1,7 @@
 /*
  * uart.c
  *
- * Copyright (c) 2021 Jan Rusnak <jan@rusnak.sk>
+ * Copyright (c) 2024 Jan Rusnak <jan@rusnak.sk>
  *
  * Permission to use, copy, modify, and distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -112,14 +112,14 @@ void init_uart(uart dev, enum uart_rx_mode m)
 		break;
 #endif
 #if UART_HDLC == 1
-	case UART_HDLC_MODE    :
+	case UART_HDLC_MODE :
 		if (NULL == (dev->hdlc_mesg.pld = pvPortMalloc(dev->hdlc_bf_sz))) {
 			crit_err_exit(MALLOC_ERROR);
 		}
 		dev->hndlr = hdlc_hndlr;
 		break;
 #endif
-	default                :
+	default :
 		crit_err_exit(BAD_PARAMETER);
 		break;
 	}
@@ -347,7 +347,7 @@ static BaseType_t hdlc_hndlr(uart dev)
                         return (pdFALSE);
 		}
                 switch (dev->rcv_st) {
-		case HDLC_RCV_FLAG_1    :
+		case HDLC_RCV_FLAG_1 :
 			if (d == dev->HDLC_FLAG) {
 				dev->rcv_st = HDLC_RCV_DATA;
                                 dev->hdlc_mesg.sz = 0;
@@ -355,7 +355,7 @@ static BaseType_t hdlc_hndlr(uart dev)
 				dev->hdlc_stats.no_f1_perr++;
 			}
 			break;
-		case HDLC_RCV_DATA      :
+		case HDLC_RCV_DATA :
 			if (d == dev->HDLC_FLAG) {
 				if (dev->hdlc_mesg.sz != 0) {
 					dev->mmio->UART_IDR = UART_IDR_RXRDY;
@@ -375,7 +375,7 @@ static BaseType_t hdlc_hndlr(uart dev)
 				}
 			}
 			break;
-		case HDLC_RCV_ESC       :
+		case HDLC_RCV_ESC :
 			if (dev->hdlc_mesg.sz < dev->hdlc_bf_sz) {
 				uint8_t n = d ^ dev->HDLC_MOD;
 				if (n == dev->HDLC_FLAG || n == dev->HDLC_ESC) {

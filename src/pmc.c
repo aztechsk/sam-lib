@@ -1,7 +1,7 @@
 /*
  * pmc.c
  *
- * Copyright (c) 2020 Jan Rusnak <jan@rusnak.sk>
+ * Copyright (c) 2024 Jan Rusnak <jan@rusnak.sk>
  *
  * Permission to use, copy, modify, and distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -418,9 +418,9 @@ void update_sys_core_clk(void)
 		} else {
 			SystemCoreClock = CHIP_FREQ_MAINCK_RC_4MHZ;
 			switch (PMC->CKGR_MOR & CKGR_MOR_MOSCRCF_Msk) {
-			case CKGR_MOR_MOSCRCF_4_MHz  :
+			case CKGR_MOR_MOSCRCF_4_MHz :
 				break;
-			case CKGR_MOR_MOSCRCF_8_MHz  :
+			case CKGR_MOR_MOSCRCF_8_MHz :
 				SystemCoreClock *= 2;
 				break;
 			case CKGR_MOR_MOSCRCF_12_MHz :
@@ -439,9 +439,9 @@ void update_sys_core_clk(void)
 		} else {
 			SystemCoreClock = CHIP_FREQ_MAINCK_RC_4MHZ;
 			switch (PMC->CKGR_MOR & CKGR_MOR_MOSCRCF_Msk) {
-			case CKGR_MOR_MOSCRCF_4_MHz  :
+			case CKGR_MOR_MOSCRCF_4_MHz :
 				break;
-			case CKGR_MOR_MOSCRCF_8_MHz  :
+			case CKGR_MOR_MOSCRCF_8_MHz :
 				SystemCoreClock *= 2;
 				break;
 			case CKGR_MOR_MOSCRCF_12_MHz :

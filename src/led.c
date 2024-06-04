@@ -1,7 +1,7 @@
 /*
  * led.c
  *
- * Copyright (c) 2020 Jan Rusnak <jan@rusnak.sk>
+ * Copyright (c) 2024 Jan Rusnak <jan@rusnak.sk>
  *
  * Permission to use, copy, modify, and distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -105,14 +105,14 @@ void set_led_dev_state(led dev, enum led_state state, ...)
 	va_list ap;
 
 	switch (state) {
-	case LED_STATE_ON     :
+	case LED_STATE_ON :
 		/* FALLTHRU */
-	case LED_STATE_OFF    :
+	case LED_STATE_OFF :
 		/* FALLTHRU */
-        case LED_STATE_FLASH  :
+        case LED_STATE_FLASH :
 		dev->state_chng = state;
 		break;
-        case LED_STATE_BLINK  :
+        case LED_STATE_BLINK :
 		va_start(ap, state);
                 taskENTER_CRITICAL();
 		dev->state_chng = state;
@@ -120,7 +120,7 @@ void set_led_dev_state(led dev, enum led_state state, ...)
 		taskEXIT_CRITICAL();
                 va_end(ap);
                 break;
-	default               :
+	default :
 		crit_err_exit(BAD_PARAMETER);
 		break;
 	}

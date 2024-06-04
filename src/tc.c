@@ -1,7 +1,7 @@
 /*
  * tc.c
  *
- * Copyright (c) 2020 Jan Rusnak <jan@rusnak.sk>
+ * Copyright (c) 2024 Jan Rusnak <jan@rusnak.sk>
  *
  * Permission to use, copy, modify, and distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -85,7 +85,7 @@ void set_tc_intr_clbk(int chnl_id, BaseType_t (*clbk)(void))
 		h5 = clbk;
 		break;
 #endif
-	default     :
+	default :
 		crit_err_exit(BAD_PARAMETER);
 		break;
 	}
@@ -121,7 +121,7 @@ int tc_chnl(int chnl_id)
         case ID_TC5 :
 		return (2);
 #endif
-	default     :
+	default :
 		crit_err_exit(BAD_PARAMETER);
                 return (0);
 	}

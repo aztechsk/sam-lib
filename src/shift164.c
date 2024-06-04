@@ -1,7 +1,7 @@
 /*
  * shift164.c
  *
- * Copyright (c) 2020 Jan Rusnak <jan@rusnak.sk>
+ * Copyright (c) 2024 Jan Rusnak <jan@rusnak.sk>
  *
  * Permission to use, copy, modify, and distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -114,7 +114,7 @@ static BaseType_t tc_hndlr(void)
 
 	sr = SHIFT164_TDV->TC_CHANNEL[tc_chnl(SHIFT164_TID)].TC_SR;
 	switch (state) {
-	case SIG_CP_LOW  :
+	case SIG_CP_LOW :
 		set_pin_lev(act_dev->cp_pin, act_dev->cp_cont, LOW);
 		if (bit < act_dev->size) {
 			if (data & 1) {
@@ -141,7 +141,7 @@ static BaseType_t tc_hndlr(void)
 		state = SIG_CP_LOW;
 		break;
 #if SHIFT164_OUT_LATCH == 1
-	case SIG_OL_LOW  :
+	case SIG_OL_LOW :
 		set_pin_lev(act_dev->ol_pin, act_dev->ol_cont, LOW);
 		SHIFT164_TDV->TC_CHANNEL[tc_chnl(SHIFT164_TID)].TC_CCR = TC_CCR_CLKDIS;
 		SHIFT164_TDV->TC_CHANNEL[tc_chnl(SHIFT164_TID)].TC_IDR = TC_IDR_CPCS;

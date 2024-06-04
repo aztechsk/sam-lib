@@ -1,7 +1,7 @@
 /*
  * ledui.c
  *
- * Copyright (c) 2023 Jan Rusnak <jan@rusnak.sk>
+ * Copyright (c) 2024 Jan Rusnak <jan@rusnak.sk>
  *
  * Permission to use, copy, modify, and distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -153,55 +153,55 @@ void set_ledui_led_state(ledui_led ins, enum ledui_led_cmnd cmnd, ...)
                 crit_err_exit(UNEXP_PROG_STATE);
         }
 	switch (cmnd) {
-	case LEDUI_LED_BLINK_SLOW_STDF   :
+	case LEDUI_LED_BLINK_SLOW_STDF :
 		/* FALLTHRU */
 	case LEDUI_LED_BLINK_NORMAL_STDF :
 		/* FALLTHRU */
-	case LEDUI_LED_BLINK_FAST_STDF   :
+	case LEDUI_LED_BLINK_FAST_STDF :
 		cmnd -= 5;
 		va_start(ap, cmnd);
 		lb_is = va_arg(ap, int);
 		va_end(ap);
 		break;
-	default                          :
+	default :
 		lb_is = LEDUI_BLINK_START_NSET;
 		break;
 	}
 	switch (lb_is) {
-	case LEDUI_BLINK_START_ON   :
+	case LEDUI_BLINK_START_ON :
 		/* FALLTHRU */
-	case LEDUI_BLINK_START_OFF  :
+	case LEDUI_BLINK_START_OFF :
 		/* FALLTHRU */
 	case LEDUI_BLINK_START_NSET :
 		break;
-	default                     :
+	default :
 		crit_err_exit(BAD_PARAMETER);
 		break;
 	}
         xSemaphoreTake(mtx, portMAX_DELAY);
         switch (cmnd) {
-        case LEDUI_LED_ON           :
+        case LEDUI_LED_ON :
                 set_ld_stat(ins, LEDUI_LED_ON, lb_is);
                 break;
-        case LEDUI_LED_OFF          :
+        case LEDUI_LED_OFF :
                 set_ld_stat(ins, LEDUI_LED_OFF, lb_is);
                 break;
-        case LEDUI_LED_BLINK_FAST   :
+        case LEDUI_LED_BLINK_FAST :
                 set_ld_stat(ins, LEDUI_LED_BLINK_FAST, lb_is);
                 break;
         case LEDUI_LED_BLINK_NORMAL :
                 set_ld_stat(ins, LEDUI_LED_BLINK_NORMAL, lb_is);
                 break;
-        case LEDUI_LED_BLINK_SLOW   :
+        case LEDUI_LED_BLINK_SLOW :
                 set_ld_stat(ins, LEDUI_LED_BLINK_SLOW, lb_is);
                 break;
-        case LEDUI_LED_NEXT_STATE   :
+        case LEDUI_LED_NEXT_STATE :
                 if (++ins->state == LEDUI_LED_NEXT_STATE) {
                         ins->state = LEDUI_LED_OFF;
                 }
                 set_ld_stat(ins, ins->state, lb_is);
                 break;
-        case LEDUI_LED_PREV_STATE   :
+        case LEDUI_LED_PREV_STATE :
                 if (ins->state == LEDUI_LED_OFF) {
                         ins->state = LEDUI_LED_BLINK_FAST;
                 } else {
@@ -209,7 +209,7 @@ void set_ledui_led_state(ledui_led ins, enum ledui_led_cmnd cmnd, ...)
                 }
                 set_ld_stat(ins, ins->state, lb_is);
                 break;
-        default                     :
+        default :
                 crit_err_exit(BAD_PARAMETER);
                 break;
         }
@@ -226,19 +226,19 @@ void set_ledui_all_leds_state(enum ledui_led_cmnd cmnd)
         }
         xSemaphoreTake(mtx, portMAX_DELAY);
         switch (cmnd) {
-        case LEDUI_LED_ON           :
+        case LEDUI_LED_ON :
                 set_ld_stat(&ld1, LEDUI_LED_ON, LEDUI_BLINK_START_OFF);
 		set_ld_stat(&ld2, LEDUI_LED_ON, LEDUI_BLINK_START_OFF);
 		set_ld_stat(&ld3, LEDUI_LED_ON, LEDUI_BLINK_START_OFF);
 		set_ld_stat(&ld4, LEDUI_LED_ON, LEDUI_BLINK_START_OFF);
                 break;
-        case LEDUI_LED_OFF          :
+        case LEDUI_LED_OFF :
                 set_ld_stat(&ld1, LEDUI_LED_OFF, LEDUI_BLINK_START_OFF);
                 set_ld_stat(&ld2, LEDUI_LED_OFF, LEDUI_BLINK_START_OFF);
                 set_ld_stat(&ld3, LEDUI_LED_OFF, LEDUI_BLINK_START_OFF);
                 set_ld_stat(&ld4, LEDUI_LED_OFF, LEDUI_BLINK_START_OFF);
                 break;
-        case LEDUI_LED_BLINK_FAST   :
+        case LEDUI_LED_BLINK_FAST :
                 set_ld_stat(&ld1, LEDUI_LED_BLINK_FAST, LEDUI_BLINK_START_OFF);
                 set_ld_stat(&ld2, LEDUI_LED_BLINK_FAST, LEDUI_BLINK_START_OFF);
                 set_ld_stat(&ld3, LEDUI_LED_BLINK_FAST, LEDUI_BLINK_START_OFF);
@@ -250,13 +250,13 @@ void set_ledui_all_leds_state(enum ledui_led_cmnd cmnd)
                 set_ld_stat(&ld3, LEDUI_LED_BLINK_NORMAL, LEDUI_BLINK_START_OFF);
                 set_ld_stat(&ld4, LEDUI_LED_BLINK_NORMAL, LEDUI_BLINK_START_OFF);
                 break;
-        case LEDUI_LED_BLINK_SLOW   :
+        case LEDUI_LED_BLINK_SLOW :
                 set_ld_stat(&ld1, LEDUI_LED_BLINK_SLOW, LEDUI_BLINK_START_OFF);
                 set_ld_stat(&ld2, LEDUI_LED_BLINK_SLOW, LEDUI_BLINK_START_OFF);
                 set_ld_stat(&ld3, LEDUI_LED_BLINK_SLOW, LEDUI_BLINK_START_OFF);
                 set_ld_stat(&ld4, LEDUI_LED_BLINK_SLOW, LEDUI_BLINK_START_OFF);
                 break;
-        default                     :
+        default :
                 xSemaphoreGive(mtx);
                 crit_err_exit(BAD_PARAMETER);
                 break;
@@ -270,21 +270,21 @@ void set_ledui_all_leds_state(enum ledui_led_cmnd cmnd)
 static void set_ld_stat(ledui_led ins, enum ledui_led_cmnd cmnd, enum ledui_blink_start lb_is)
 {
         switch (cmnd) {
-        case LEDUI_LED_ON           :
+        case LEDUI_LED_ON :
                 ledui_led_hw_on(ins->pos);
                 ins->state = LEDUI_LED_ON;
                 ins->on_off = ON;
                 ins->freq = 0;
                 ins->cnt = 0;
                 break;
-        case LEDUI_LED_OFF          :
+        case LEDUI_LED_OFF :
                 ledui_led_hw_off(ins->pos);
                 ins->state = LEDUI_LED_OFF;
                 ins->on_off = OFF;
                 ins->freq = 0;
                 ins->cnt = 0;
                 break;
-        case LEDUI_LED_BLINK_FAST   :
+        case LEDUI_LED_BLINK_FAST :
 		set_ld_init_stat(ins, lb_is);
                 ins->state = LEDUI_LED_BLINK_FAST;
                 ins->freq = LEDUI_BLINK_FAST_SWITCH;
@@ -296,13 +296,13 @@ static void set_ld_stat(ledui_led ins, enum ledui_led_cmnd cmnd, enum ledui_blin
                 ins->freq = LEDUI_BLINK_NORMAL_SWITCH;
                 ins->cnt = LEDUI_BLINK_NORMAL_SWITCH;
                 break;
-        case LEDUI_LED_BLINK_SLOW   :
+        case LEDUI_LED_BLINK_SLOW :
 		set_ld_init_stat(ins, lb_is);
                 ins->state = LEDUI_LED_BLINK_SLOW;
                 ins->freq = LEDUI_BLINK_SLOW_SWITCH;
                 ins->cnt = LEDUI_BLINK_SLOW_SWITCH;
                 break;
-	default                     :
+	default :
 		break;
         }
 }
@@ -313,7 +313,7 @@ static void set_ld_stat(ledui_led ins, enum ledui_led_cmnd cmnd, enum ledui_blin
 static void set_ld_init_stat(ledui_led ins, enum ledui_blink_start lb_is)
 {
 	switch (lb_is) {
-	case LEDUI_BLINK_START_ON  :
+	case LEDUI_BLINK_START_ON :
 		ledui_led_hw_on(ins->pos);
 		ins->on_off = ON;
 		break;
@@ -321,7 +321,7 @@ static void set_ld_init_stat(ledui_led ins, enum ledui_blink_start lb_is)
 		ledui_led_hw_off(ins->pos);
                 ins->on_off = OFF;
 		break;
-	default                    :
+	default :
 		sw_ld(ins);
 		break;
 	}

@@ -1,7 +1,7 @@
 /*
  * sleep.c
  *
- * Copyright (c) 2023 Jan Rusnak <jan@rusnak.sk>
+ * Copyright (c) 2024 Jan Rusnak <jan@rusnak.sk>
  *
  * Permission to use, copy, modify, and distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -69,7 +69,7 @@ void reg_sleep_clbk(void (*clbk)(enum sleep_cmd, ...), enum sleep_prio prio)
 	int sz = 0;
 
 	switch (prio) {
-	case SLEEP_PRIO_SUSP_FIRST  :
+	case SLEEP_PRIO_SUSP_FIRST :
 		ary = first;
 		sz = SLEEP_FIRST_ARY_SIZE;
 		break;
@@ -77,7 +77,7 @@ void reg_sleep_clbk(void (*clbk)(enum sleep_cmd, ...), enum sleep_prio prio)
 		ary = second;
 		sz = SLEEP_SECOND_ARY_SIZE;
 		break;
-        case SLEEP_PRIO_SUSP_LAST   :
+        case SLEEP_PRIO_SUSP_LAST :
 		ary = last;
 		sz = SLEEP_LAST_ARY_SIZE;
 		break;

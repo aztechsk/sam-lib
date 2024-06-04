@@ -1,7 +1,7 @@
 /*
  * usart.c
  *
- * Copyright (c) 2023 Jan Rusnak <jan@rusnak.sk>
+ * Copyright (c) 2024 Jan Rusnak <jan@rusnak.sk>
  *
  * Permission to use, copy, modify, and distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -105,7 +105,7 @@ void init_usart(usart dev, enum usart_mode m)
 	}
 	switch (dev->mode = m) {
 #if USART_RX_CHAR == 1 || USART_ADR_CHAR == 1
-	case USART_RX_CHAR_MODE  :
+	case USART_RX_CHAR_MODE :
 	case USART_ADR_CHAR_MODE :
 		if (dev->rx_que == NULL) {
 			dev->rx_que = xQueueCreate(dev->rx_que_sz, sizeof(uint16_t));
@@ -119,7 +119,7 @@ void init_usart(usart dev, enum usart_mode m)
 		break;
 #endif
 #if USART_HDLC == 1 || USART_ADR_HDLC == 1
-	case USART_HDLC_MODE     :
+	case USART_HDLC_MODE :
 	case USART_ADR_HDLC_MODE :
 		if (NULL == (dev->hdlc_mesg.pld = pvPortMalloc(dev->hdlc_bf_sz))) {
 			crit_err_exit(MALLOC_ERROR);
@@ -136,7 +136,7 @@ void init_usart(usart dev, enum usart_mode m)
 		break;
 #endif
 #if USART_YIT == 1
-	case USART_YIT_MODE      :
+	case USART_YIT_MODE :
 		if (dev->rx_que == NULL) {
 			dev->rx_que = xQueueCreate(USART_YIT_CMD_ARY_SIZE, sizeof(struct yit_cmd *));
 			if (dev->rx_que == NULL) {
@@ -149,7 +149,7 @@ void init_usart(usart dev, enum usart_mode m)
                 dev->rcv_st = YIT_WAIT_CA;
 		break;
 #endif
-	default                  :
+	default :
 		crit_err_exit(BAD_PARAMETER);
 		break;
 	}
@@ -443,7 +443,7 @@ static BaseType_t hdlc_hndlr(usart dev)
                         return (pdFALSE);
 		}
                 switch (dev->rcv_st) {
-		case HDLC_RCV_FLAG_1    :
+		case HDLC_RCV_FLAG_1 :
 			if (d == dev->HDLC_FLAG) {
 				dev->rcv_st = HDLC_RCV_DATA;
                                 dev->hdlc_mesg.sz = 0;
@@ -451,7 +451,7 @@ static BaseType_t hdlc_hndlr(usart dev)
 				dev->hdlc_stats.no_f1_perr++;
 			}
 			break;
-		case HDLC_RCV_DATA      :
+		case HDLC_RCV_DATA :
 			if (d == dev->HDLC_FLAG) {
 				if (dev->hdlc_mesg.sz != 0) {
 					dev->mmio->US_IDR = US_IDR_RXRDY;
@@ -471,7 +471,7 @@ static BaseType_t hdlc_hndlr(usart dev)
 				}
 			}
 			break;
-		case HDLC_RCV_ESC       :
+		case HDLC_RCV_ESC :
 			if (dev->hdlc_mesg.sz < dev->hdlc_bf_sz) {
 				uint8_t n = d ^ dev->HDLC_MOD;
 				if (n == dev->HDLC_FLAG || n == dev->HDLC_ESC) {
@@ -655,7 +655,7 @@ static BaseType_t adr_hdlc_hndlr(usart dev)
 		switch (dev->rcv_st) {
 		case HDLC_RCV_WAIT_ADDR :
 			break;
-		case HDLC_RCV_FLAG_1    :
+		case HDLC_RCV_FLAG_1 :
 			if (d == dev->HDLC_FLAG) {
 				dev->rcv_st = HDLC_RCV_DATA;
 			} else {
@@ -663,7 +663,7 @@ static BaseType_t adr_hdlc_hndlr(usart dev)
 				dev->rcv_st = HDLC_RCV_WAIT_ADDR;
 			}
 			break;
-		case HDLC_RCV_DATA      :
+		case HDLC_RCV_DATA :
 			if (d == dev->HDLC_FLAG) {
 				dev->mmio->US_IDR = US_IDR_RXRDY;
 				dev->mmio->US_CR = US_CR_RXDIS;
@@ -679,7 +679,7 @@ static BaseType_t adr_hdlc_hndlr(usart dev)
 				}
 			}
 			break;
-		case HDLC_RCV_ESC       :
+		case HDLC_RCV_ESC :
 			if (dev->hdlc_mesg.sz < dev->hdlc_bf_sz) {
 #if USART_ADR_HDLC_OFFS_ESC_SEQ == 1
 				uint8_t n = d + dev->HDLC_MOD;
@@ -896,7 +896,7 @@ static BaseType_t yit_hndlr(usart dev)
 			return (pdFALSE);
 		}
 		switch (dev->rcv_st) {
-		case YIT_WAIT_CA     :
+		case YIT_WAIT_CA :
 #if USART_YIT_DRIVER_STATS == 1
 			if (d == YIT_MSG_FLAG) {
 				dev->rcv_st = YIT_WAIT_SZ_LSB;
@@ -928,14 +928,14 @@ static BaseType_t yit_hndlr(usart dev)
 #endif
 			}
 			break;
-		case YIT_RCV_DATA    :
+		case YIT_RCV_DATA :
 			if (!--dev->usart_yit.cmd_sz) {
 				dev->rcv_st = YIT_RCV_SUM;
 			}
 			*(cmd->buf + dev->usart_yit.buf_idx++) = d;
 			dev->usart_yit.sum += d;
 			break;
-		case YIT_RCV_SUM     :
+		case YIT_RCV_SUM :
 			if (dev->usart_yit.sum == d) {
 				cmd->valid = TRUE;
 				xQueueSendFromISR(dev->rx_que, &cmd, &tsk_wkn);

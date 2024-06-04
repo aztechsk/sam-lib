@@ -1,7 +1,7 @@
 /*
  * criterr.c
  *
- * Copyright (c) 2020 Jan Rusnak <jan@rusnak.sk>
+ * Copyright (c) 2024 Jan Rusnak <jan@rusnak.sk>
  *
  * Permission to use, copy, modify, and distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -71,7 +71,7 @@ void crit_err_exit_fn(enum crit_err err, char *file, int line)
 		crit_err(TASK_STACK_OVERFLOW);
 	}
 	switch (xTaskGetSchedulerState()) {
-	case taskSCHEDULER_RUNNING     :
+	case taskSCHEDULER_RUNNING :
 #if TERMOUT == 1
 		vTaskPrioritySet(NULL, configMAX_PRIORITIES - 1);
 		msg(INF, "%s: crit_err_exit(%s) on line %d\n", fname(file),
@@ -86,9 +86,9 @@ void crit_err_exit_fn(enum crit_err err, char *file, int line)
 		/* FALLTHRU */
 	case taskSCHEDULER_NOT_STARTED :
 		/* FALLTHRU */
-	case taskSCHEDULER_SUSPENDED   :
+	case taskSCHEDULER_SUSPENDED :
 		/* FALLTHRU */
-	default                        :
+	default :
 		crit_err(err);
 		break;
 	}

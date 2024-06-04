@@ -1,7 +1,7 @@
 /*
  * pio.c
  *
- * Copyright (c) 2020 Jan Rusnak <jan@rusnak.sk>
+ * Copyright (c) 2024 Jan Rusnak <jan@rusnak.sk>
  *
  * Permission to use, copy, modify, and distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -44,27 +44,27 @@ void conf_io_pin(unsigned int pin, Pio *cont, enum pio_func func, ...)
 	va_start(ap, func);
 	while ((feat = va_arg(ap, int)) != PIO_END_OF_FEAT) {
 		switch (feat) {
-		case PIO_PULL_UP_ON         :
+		case PIO_PULL_UP_ON :
 			cont->PIO_PPDDR = pin;
 			cont->PIO_PUER = pin;
 			break;
-		case PIO_PULL_UP_OFF        :
+		case PIO_PULL_UP_OFF :
 			cont->PIO_PUDR = pin;
 			break;
-		case PIO_PULL_DOWN_ON       :
+		case PIO_PULL_DOWN_ON :
 			cont->PIO_PUDR = pin;
                         cont->PIO_PPDER = pin;
 			break;
-		case PIO_PULL_DOWN_OFF      :
+		case PIO_PULL_DOWN_OFF :
 			cont->PIO_PPDDR = pin;
 			break;
-		case PIO_MULTI_DRIVE_ON     :
+		case PIO_MULTI_DRIVE_ON :
 			cont->PIO_MDER = pin;
 			break;
-		case PIO_MULTI_DRIVE_OFF    :
+		case PIO_MULTI_DRIVE_OFF :
 			cont->PIO_MDDR = pin;
 			break;
-		case PIO_GLITCH_FILTER_ON   :
+		case PIO_GLITCH_FILTER_ON :
 			cont->PIO_IFSCDR = pin;
 			cont->PIO_IFER = pin;
 			break;
@@ -72,57 +72,57 @@ void conf_io_pin(unsigned int pin, Pio *cont, enum pio_func func, ...)
 			cont->PIO_IFSCER = pin;
 			cont->PIO_IFER = pin;
 			break;
-		case PIO_INPUT_FILTER_OFF   :
+		case PIO_INPUT_FILTER_OFF :
 			cont->PIO_IFDR = pin;
 			break;
-		case PIO_DRIVE_LOW	    :
+		case PIO_DRIVE_LOW :
 			cont->PIO_CODR = pin;
 			break;
-		case PIO_DRIVE_HIGH	    :
+		case PIO_DRIVE_HIGH :
 			cont->PIO_SODR = pin;
 			break;
-		case PIO_ANY_EDGE_INTR      :
+		case PIO_ANY_EDGE_INTR :
 			cont->PIO_AIMDR = pin;
 			cont->PIO_IER = pin;
 			break;
-		case PIO_RISING_EDGE_INTR   :
+		case PIO_RISING_EDGE_INTR :
 			cont->PIO_AIMER = pin;
                         cont->PIO_ESR = pin;
                         cont->PIO_REHLSR = pin;
 			cont->PIO_IER = pin;
 			break;
-		case PIO_FALLING_EDGE_INTR  :
+		case PIO_FALLING_EDGE_INTR :
 			cont->PIO_AIMER = pin;
                         cont->PIO_ESR = pin;
                         cont->PIO_FELLSR = pin;
 			cont->PIO_IER = pin;
 			break;
-		case PIO_HIGH_LEVEL_INTR    :
+		case PIO_HIGH_LEVEL_INTR :
 			cont->PIO_AIMER = pin;
                         cont->PIO_LSR = pin;
                         cont->PIO_REHLSR = pin;
 			cont->PIO_IER = pin;
 			break;
-		case PIO_LOW_LEVEL_INTR     :
+		case PIO_LOW_LEVEL_INTR :
 			cont->PIO_AIMER = pin;
                         cont->PIO_LSR = pin;
                         cont->PIO_FELLSR = pin;
 			cont->PIO_IER = pin;
 			break;
-		case PIO_SCHMITT_ON         :
+		case PIO_SCHMITT_ON :
 			taskENTER_CRITICAL();
 			cont->PIO_SCHMITT &= ~pin;
 			taskEXIT_CRITICAL();
 			break;
-		case PIO_SCHMITT_OFF        :
+		case PIO_SCHMITT_OFF :
 			taskENTER_CRITICAL();
 			cont->PIO_SCHMITT |= pin;
                         taskEXIT_CRITICAL();
 			break;
-		case PIO_DISABLE_INTR       :
+		case PIO_DISABLE_INTR :
 			cont->PIO_IDR = pin;
 			break;
-		default			    :
+		default :
 			crit_err_exit(BAD_PARAMETER);
 			break;
 		}
@@ -160,7 +160,7 @@ void conf_io_pin(unsigned int pin, Pio *cont, enum pio_func func, ...)
 			cont->PIO_ABCDSR[0] |= pin;
                         taskEXIT_CRITICAL();
 			break;
-		default		  :
+		default :
 			crit_err_exit(BAD_PARAMETER);
 			break;
 		}
