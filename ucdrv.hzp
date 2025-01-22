@@ -57,6 +57,8 @@
       <file Name="i2c.h" file_name="src/i2c.h" />
       <file Name="sleep.c" file_name="src/sleep.c" />
       <file Name="sleep.h" file_name="src/sleep.h" />
+      <file Name="pinmon.c" file_name="src/pinmon.c" />
+      <file Name="pinmon.h" file_name="src/pinmon.h" />
     </folder>
     <configuration Name="Release" gcc_optimization_level="Level 1" />
   </project>

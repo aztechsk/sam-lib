@@ -123,13 +123,22 @@ void init_uart(uart dev, enum uart_rx_mode m)
 		crit_err_exit(BAD_PARAMETER);
 		break;
 	}
-	if (dev->sig == NULL) {
-		if (NULL == (dev->sig = xSemaphoreCreateBinary())) {
+	if (dev->tx_sig == NULL) {
+		if (NULL == (dev->tx_sig = xSemaphoreCreateBinary())) {
 			crit_err_exit(MALLOC_ERROR);
 		}
 	} else {
 		crit_err_exit(UNEXP_PROG_STATE);
 	}
+#if UART_HDLC == 1
+	if (dev->rx_sig == NULL) {
+		if (NULL == (dev->rx_sig = xSemaphoreCreateBinary())) {
+			crit_err_exit(MALLOC_ERROR);
+		}
+	} else {
+		crit_err_exit(UNEXP_PROG_STATE);
+	}
+#endif
 	enable_periph_clk(dev->id);
         dev->mmio->UART_IDR = ~0;
 	dev->mmio->UART_CR = UART_CR_RSTRX | UART_CR_RSTTX | UART_CR_RSTSTA;
@@ -162,13 +171,13 @@ int uart_tx_buff(void *dev, void *p_buf, int size)
 		((uart) dev)->mmio->UART_IER = UART_IER_ENDTX;
 		((uart) dev)->mmio->UART_CR = UART_CR_TXEN;
 		((uart) dev)->mmio->UART_PTCR = UART_PTCR_TXTEN;
-		if (pdFALSE == xSemaphoreTake(((uart) dev)->sig, WAIT_PDC_INTR) ||
+		if (pdFALSE == xSemaphoreTake(((uart) dev)->tx_sig, WAIT_PDC_INTR) ||
 		    ((uart) dev)->mmio->UART_TCR != 0) {
 			((uart) dev)->mmio->UART_IDR = UART_IDR_ENDTX;
 			((uart) dev)->mmio->UART_PTCR = UART_PTCR_TXTDIS;
 			((uart) dev)->mmio->UART_TCR = 0;
 			((uart) dev)->mmio->UART_CR = UART_CR_RSTTX;
-			xSemaphoreTake(((uart) dev)->sig, 0);
+			xSemaphoreTake(((uart) dev)->tx_sig, 0);
 			return (-EDMA);
 		}
 		while (!(((uart) dev)->mmio->UART_SR & UART_SR_TXEMPTY)) {
@@ -254,7 +263,7 @@ static BaseType_t rx_byte_hndlr(uart dev)
 		xQueueSendFromISR(dev->rx_que, &d, &tsk_wkn);
 	} else if (sr & UART_SR_ENDTX && dev->mmio->UART_IMR & UART_IMR_ENDTX) {
         	dev->mmio->UART_IDR = UART_IDR_ENDTX;
-                xSemaphoreGiveFromISR(dev->sig, &tsk_wkn);
+                xSemaphoreGiveFromISR(dev->tx_sig, &tsk_wkn);
 	}
 	return (tsk_wkn);
 }
@@ -308,10 +317,10 @@ struct hdlc_mesg *uart_rx_hdlc_mesg(uart dev, TickType_t tmo)
         barrier();
 	dev->mmio->UART_IER = UART_IER_RXRDY;
 	dev->mmio->UART_CR = UART_CR_RXEN;
-	if (pdFALSE == xSemaphoreTake(dev->sig, tmo)) {
+	if (pdFALSE == xSemaphoreTake(dev->rx_sig, tmo)) {
 		dev->mmio->UART_IDR = UART_IDR_RXRDY;
                 dev->mmio->UART_CR = UART_CR_RXDIS;
-                xSemaphoreTake(dev->sig, 0);
+                xSemaphoreTake(dev->rx_sig, 0);
                 return (NULL);
 	} else {
 		return (&dev->hdlc_mesg);
@@ -360,7 +369,7 @@ static BaseType_t hdlc_hndlr(uart dev)
 				if (dev->hdlc_mesg.sz != 0) {
 					dev->mmio->UART_IDR = UART_IDR_RXRDY;
 					dev->mmio->UART_CR = UART_CR_RXDIS;
-					xSemaphoreGiveFromISR(dev->sig, &tsk_wkn);
+					xSemaphoreGiveFromISR(dev->rx_sig, &tsk_wkn);
 				} else {
 					dev->hdlc_stats.syn_f1_perr++;
 				}
@@ -393,7 +402,7 @@ static BaseType_t hdlc_hndlr(uart dev)
 		}
 	} else if (sr & UART_SR_ENDTX && dev->mmio->UART_IMR & UART_IMR_ENDTX) {
         	dev->mmio->UART_IDR = UART_IDR_ENDTX;
-                xSemaphoreGiveFromISR(dev->sig, &tsk_wkn);
+                xSemaphoreGiveFromISR(dev->tx_sig, &tsk_wkn);
 	}
 	return (tsk_wkn);
 }

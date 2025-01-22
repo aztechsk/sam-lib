@@ -32,6 +32,8 @@
 extern inline boolean_t get_pin_lev(unsigned int pin, Pio *cont);
 extern inline void set_pin_lev(unsigned int pin, Pio *cont, boolean_t lev);
 extern inline boolean_t get_pin_out(unsigned int pin, Pio *cont);
+extern inline void enable_pin_intr(unsigned int pin, Pio *cont);
+extern inline void disable_pin_intr(unsigned int pin, Pio *cont);
 
 /**
  * conf_io_pin
@@ -108,6 +110,29 @@ void conf_io_pin(unsigned int pin, Pio *cont, enum pio_func func, ...)
                         cont->PIO_LSR = pin;
                         cont->PIO_FELLSR = pin;
 			cont->PIO_IER = pin;
+			break;
+		case PIO_ANY_EDGE_INTR_CFG :
+			cont->PIO_AIMDR = pin;
+			break;
+		case PIO_RISING_EDGE_INTR_CFG :
+			cont->PIO_AIMER = pin;
+                        cont->PIO_ESR = pin;
+                        cont->PIO_REHLSR = pin;
+			break;
+		case PIO_FALLING_EDGE_INTR_CFG :
+			cont->PIO_AIMER = pin;
+                        cont->PIO_ESR = pin;
+                        cont->PIO_FELLSR = pin;
+			break;
+		case PIO_HIGH_LEVEL_INTR_CFG :
+			cont->PIO_AIMER = pin;
+                        cont->PIO_LSR = pin;
+                        cont->PIO_REHLSR = pin;
+			break;
+		case PIO_LOW_LEVEL_INTR_CFG :
+			cont->PIO_AIMER = pin;
+                        cont->PIO_LSR = pin;
+                        cont->PIO_FELLSR = pin;
 			break;
 		case PIO_SCHMITT_ON :
 			taskENTER_CRITICAL();

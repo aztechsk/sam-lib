@@ -153,8 +153,17 @@ void init_usart(usart dev, enum usart_mode m)
 		crit_err_exit(BAD_PARAMETER);
 		break;
 	}
-	if (dev->sig == NULL) {
-		if (NULL == (dev->sig = xSemaphoreCreateBinary())) {
+#if USART_HDLC == 1 || USART_ADR_HDLC == 1
+	if (dev->sig_rx == NULL) {
+		if (NULL == (dev->sig_rx = xSemaphoreCreateBinary())) {
+			crit_err_exit(MALLOC_ERROR);
+		}
+	} else {
+		crit_err_exit(UNEXP_PROG_STATE);
+	}
+#endif
+	if (dev->sig_tx == NULL) {
+		if (NULL == (dev->sig_tx = xSemaphoreCreateBinary())) {
 			crit_err_exit(MALLOC_ERROR);
 		}
 	} else {
@@ -237,7 +246,7 @@ int usart_tx_buff(void *dev, void *p_buf, int size)
                 ((usart) dev)->mmio->US_CR = US_CR_TXEN;
 		((usart) dev)->mmio->US_IER = US_IER_ENDTX;
 		((usart) dev)->mmio->US_PTCR = US_PTCR_TXTEN;
-		if (pdFALSE == xSemaphoreTake(((usart) dev)->sig, WAIT_PDC_INTR) ||
+		if (pdFALSE == xSemaphoreTake(((usart) dev)->sig_tx, WAIT_PDC_INTR) ||
 		    ((usart) dev)->mmio->US_TCR != 0) {
 			((usart) dev)->mmio->US_IDR = US_IDR_ENDTX;
 			((usart) dev)->mmio->US_PTCR = US_PTCR_TXTDIS;
@@ -247,7 +256,7 @@ int usart_tx_buff(void *dev, void *p_buf, int size)
 				((usart) dev)->mmio->US_CR = US_CR_TXEN;
 			}
                         ((usart) dev)->mmio->US_CR = US_CR_TXDIS;
-			xSemaphoreTake(((usart) dev)->sig, 0);
+			xSemaphoreTake(((usart) dev)->sig_tx, 0);
 			return (-EDMA);
 		}
 		while (!(((usart) dev)->mmio->US_CSR & US_CSR_TXEMPTY)) {
@@ -347,7 +356,7 @@ static BaseType_t rx_char_hndlr(usart dev)
 		xQueueSendFromISR(dev->rx_que, &d, &tsk_wkn);
 	} else if (sr & US_CSR_ENDTX && dev->mmio->US_IMR & US_IMR_ENDTX) {
         	dev->mmio->US_IDR = US_IDR_ENDTX;
-                xSemaphoreGiveFromISR(dev->sig, &tsk_wkn);
+                xSemaphoreGiveFromISR(dev->sig_tx, &tsk_wkn);
 	}
 	return (tsk_wkn);
 }
@@ -404,10 +413,10 @@ struct hdlc_mesg *usart_rx_hdlc_mesg(usart dev, TickType_t tmo)
         barrier();
 	dev->mmio->US_IER = US_IER_RXRDY;
 	dev->mmio->US_CR = US_CR_RXEN;
-	if (pdFALSE == xSemaphoreTake(dev->sig, tmo)) {
+	if (pdFALSE == xSemaphoreTake(dev->sig_rx, tmo)) {
 		dev->mmio->US_IDR = US_IDR_RXRDY;
                 dev->mmio->US_CR = US_CR_RXDIS;
-                xSemaphoreTake(dev->sig, 0);
+                xSemaphoreTake(dev->sig_rx, 0);
                 return (NULL);
 	} else {
 		return (&dev->hdlc_mesg);
@@ -456,7 +465,7 @@ static BaseType_t hdlc_hndlr(usart dev)
 				if (dev->hdlc_mesg.sz != 0) {
 					dev->mmio->US_IDR = US_IDR_RXRDY;
 					dev->mmio->US_CR = US_CR_RXDIS;
-					xSemaphoreGiveFromISR(dev->sig, &tsk_wkn);
+					xSemaphoreGiveFromISR(dev->sig_rx, &tsk_wkn);
 				} else {
 					dev->hdlc_stats.syn_f1_perr++;
 				}
@@ -489,7 +498,7 @@ static BaseType_t hdlc_hndlr(usart dev)
 		}
 	} else if (sr & US_CSR_ENDTX && dev->mmio->US_IMR & US_IMR_ENDTX) {
         	dev->mmio->US_IDR = US_IDR_ENDTX;
-                xSemaphoreGiveFromISR(dev->sig, &tsk_wkn);
+                xSemaphoreGiveFromISR(dev->sig_tx, &tsk_wkn);
 	}
 	return (tsk_wkn);
 }
@@ -536,7 +545,7 @@ int usart_tx_adr_hdlc_mesg(usart dev, uint8_t *pld, int size, uint8_t adr)
 		dev->mmio->US_CR = US_CR_SENDA;
 		dev->mmio->US_IER = US_IER_ENDTX;
 		dev->mmio->US_PTCR = US_PTCR_TXTEN;
-		if (pdFALSE == xSemaphoreTake(dev->sig, WAIT_PDC_INTR) ||
+		if (pdFALSE == xSemaphoreTake(dev->sig_tx, WAIT_PDC_INTR) ||
 		    dev->mmio->US_TCR != 0) {
 			dev->mmio->US_IDR = US_IDR_ENDTX;
 			dev->mmio->US_PTCR = US_PTCR_TXTDIS;
@@ -546,7 +555,7 @@ int usart_tx_adr_hdlc_mesg(usart dev, uint8_t *pld, int size, uint8_t adr)
 				dev->mmio->US_CR = US_CR_TXEN;
 			}
 			dev->mmio->US_CR = US_CR_TXDIS;
-			xSemaphoreTake(dev->sig, 0);
+			xSemaphoreTake(dev->sig_tx, 0);
 			return (-EDMA);
 		}
 		while (!(dev->mmio->US_CSR & US_CSR_TXEMPTY)) {
@@ -583,10 +592,10 @@ struct hdlc_mesg *usart_rx_adr_hdlc_mesg(usart dev, TickType_t tmo)
         barrier();
 	dev->mmio->US_IER = US_IER_RXRDY;
 	dev->mmio->US_CR = US_CR_RXEN;
-	if (pdFALSE == xSemaphoreTake(dev->sig, tmo)) {
+	if (pdFALSE == xSemaphoreTake(dev->sig_rx, tmo)) {
 		dev->mmio->US_IDR = US_IDR_RXRDY;
                 dev->mmio->US_CR = US_CR_RXDIS;
-                xSemaphoreTake(dev->sig, 0);
+                xSemaphoreTake(dev->sig_rx, 0);
                 return (NULL);
 	} else {
 		return (&dev->hdlc_mesg);
@@ -667,7 +676,7 @@ static BaseType_t adr_hdlc_hndlr(usart dev)
 			if (d == dev->HDLC_FLAG) {
 				dev->mmio->US_IDR = US_IDR_RXRDY;
 				dev->mmio->US_CR = US_CR_RXDIS;
-				xSemaphoreGiveFromISR(dev->sig, &tsk_wkn);
+				xSemaphoreGiveFromISR(dev->sig_rx, &tsk_wkn);
 			} else if (d == dev->HDLC_ESC) {
 				dev->rcv_st = HDLC_RCV_ESC;
 			} else {
@@ -701,7 +710,7 @@ static BaseType_t adr_hdlc_hndlr(usart dev)
 		}
 	} else if (sr & US_CSR_ENDTX && dev->mmio->US_IMR & US_IMR_ENDTX) {
         	dev->mmio->US_IDR = US_IDR_ENDTX;
-                xSemaphoreGiveFromISR(dev->sig, &tsk_wkn);
+                xSemaphoreGiveFromISR(dev->sig_tx, &tsk_wkn);
 	}
 	return (tsk_wkn);
 }
@@ -723,7 +732,7 @@ int usart_tx_adr_buff(usart dev, void *p_buf, int size)
 		dev->mmio->US_CR = US_CR_SENDA;
 		dev->mmio->US_IER = US_IER_ENDTX;
 		dev->mmio->US_PTCR = US_PTCR_TXTEN;
-		if (pdFALSE == xSemaphoreTake(dev->sig, WAIT_PDC_INTR) ||
+		if (pdFALSE == xSemaphoreTake(dev->sig_tx, WAIT_PDC_INTR) ||
 		    dev->mmio->US_TCR != 0) {
 			dev->mmio->US_IDR = US_IDR_ENDTX;
 			dev->mmio->US_PTCR = US_PTCR_TXTDIS;
@@ -733,7 +742,7 @@ int usart_tx_adr_buff(usart dev, void *p_buf, int size)
 				dev->mmio->US_CR = US_CR_TXEN;
 			}
 			dev->mmio->US_CR = US_CR_TXDIS;
-			xSemaphoreTake(dev->sig, 0);
+			xSemaphoreTake(dev->sig_tx, 0);
 			return (-EDMA);
 		}
 		while (!(dev->mmio->US_CSR & US_CSR_TXEMPTY)) {
@@ -954,7 +963,7 @@ static BaseType_t yit_hndlr(usart dev)
 		}
 	} else if (sr & US_CSR_ENDTX && dev->mmio->US_IMR & US_IMR_ENDTX) {
         	dev->mmio->US_IDR = US_IDR_ENDTX;
-                xSemaphoreGiveFromISR(dev->sig, &tsk_wkn);
+                xSemaphoreGiveFromISR(dev->sig_tx, &tsk_wkn);
 	}
 	return (tsk_wkn);
 }

@@ -60,7 +60,10 @@ struct uart_dsc {
         Uart *mmio;
 	int bdr; // <SetIt>
 	unsigned int mr; // <SetIt>
-        SemaphoreHandle_t sig;
+        SemaphoreHandle_t tx_sig;
+#if UART_HDLC == 1
+	SemaphoreHandle_t rx_sig;
+#endif
 #if UART_RX_BYTE == 1
 	int rx_que_sz; // <SetIt>
 	QueueHandle_t rx_que;

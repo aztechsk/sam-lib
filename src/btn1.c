@@ -219,8 +219,13 @@ static void conf_btn_pin(btn1 b)
 				    PIO_HIGH_LEVEL_INTR, PIO_END_OF_FEAT);
 		}
 	} else {
-		conf_io_pin(b->pin, b->cont, PIO_INPUT, PIO_PULL_UP_OFF, PIO_PULL_DOWN_OFF, PIO_DEBOUNCE_FILTER_ON,
-			    PIO_LOW_LEVEL_INTR, PIO_END_OF_FEAT);
+		if (b->active_lev == LOW) {
+			conf_io_pin(b->pin, b->cont, PIO_INPUT, PIO_PULL_UP_OFF, PIO_PULL_DOWN_OFF, PIO_DEBOUNCE_FILTER_ON,
+				    PIO_LOW_LEVEL_INTR, PIO_END_OF_FEAT);
+		} else {
+			conf_io_pin(b->pin, b->cont, PIO_INPUT, PIO_PULL_UP_OFF, PIO_PULL_DOWN_OFF, PIO_DEBOUNCE_FILTER_ON,
+				    PIO_HIGH_LEVEL_INTR, PIO_END_OF_FEAT);
+		}
 	}
 #else
 	if (b->active_lev == LOW) {

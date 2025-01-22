@@ -45,6 +45,11 @@ enum pio_feat {
 	PIO_FALLING_EDGE_INTR,
 	PIO_HIGH_LEVEL_INTR,
 	PIO_LOW_LEVEL_INTR,
+	PIO_ANY_EDGE_INTR_CFG,
+	PIO_RISING_EDGE_INTR_CFG,
+	PIO_FALLING_EDGE_INTR_CFG,
+	PIO_HIGH_LEVEL_INTR_CFG,
+	PIO_LOW_LEVEL_INTR_CFG,
         PIO_DISABLE_INTR,
         PIO_SCHMITT_ON,
         PIO_SCHMITT_OFF,
@@ -180,6 +185,32 @@ void disable_pio_clk(Pio *cont);
  * @cont: PIO controller instance.
  */
 void clear_pio_isr(Pio *cont);
+
+/**
+ * enable_pin_intr
+ *
+ * Enable pin interrupt.
+ *
+ * @pin: Pin position bit.
+ * @cont: PIO controller instance.
+ */
+inline void enable_pin_intr(unsigned int pin, Pio *cont)
+{
+	cont->PIO_IER = pin;
+}
+
+/**
+ * disable_pin_intr
+ *
+ * Disable pin interrupt.
+ *
+ * @pin: Pin position bit.
+ * @cont: PIO controller instance.
+ */
+inline void disable_pin_intr(unsigned int pin, Pio *cont)
+{
+	cont->PIO_IDR = pin;
+}
 
 /**
  * get_pio_periph_abcd

@@ -107,7 +107,10 @@ struct usart_dsc {
 	void (*conf_pins)(boolean_t); // <SetIt>
         Usart *mmio;
         BaseType_t (*hndlr)(usart u);
-        SemaphoreHandle_t sig;
+#if USART_HDLC == 1 || USART_ADR_HDLC == 1
+        SemaphoreHandle_t sig_rx;
+#endif
+	SemaphoreHandle_t sig_tx;
 	int bdr; // <SetIt>
 	unsigned int mr; // <SetIt>
         enum usart_mode mode;
