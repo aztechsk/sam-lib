@@ -1,7 +1,7 @@
 /*
  * spi.c
  *
- * Copyright (c) 2020 Jan Rusnak <jan@rusnak.sk>
+ * Copyright (c) 2025 Jan Rusnak <jan@rusnak.sk>
  *
  * Permission to use, copy, modify, and distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -33,7 +33,7 @@
 #include "spi.h"
 #include <string.h>
 
-#if SPIM == 1
+#if SPIBUS == 1
 
 #define WAIT_PDC_INTR (1000 / portTICK_PERIOD_MS)
 #define HW_RESP_TMOUT 1000000
@@ -46,146 +46,150 @@ enum spi_pcs {
 };
 
 #ifdef ID_SPI
-static spim smi;
+static spibus smi;
 #endif
 #ifdef ID_SPI0
-static spim smi0;
+static spibus smi0;
 #endif
 #ifdef ID_SPI1
-static spim smi1;
+static spibus smi1;
 #endif
 
-static boolean_t trans_poll(spim spi, void *buf, int size);
-static unsigned int csr_reg(spim_csel csel);
-static enum spi_pcs pcs_fld(enum spim_csel_num csn);
-static BaseType_t spi_hndlr(spim spi);
+static boolean_t trans_poll(spibus bus, void *buf, int size);
+static unsigned int csr_reg(spi_csel csel);
+static enum spi_pcs pcs_fld(enum spi_csel_num csn);
+static BaseType_t spi_hndlr(spibus bus);
 
 /**
- * init_spim
+ * init_spi
  */
-void init_spim(spim spi)
+void init_spi(spibus bus)
 {
-	NVIC_DisableIRQ(spi->id);
+	NVIC_DisableIRQ(bus->id);
 #if defined(ID_SPI)
-	if (spi->id == ID_SPI) {
-		spi->mmio = SPI;
-                smi = spi;
+	if (bus->id == ID_SPI) {
+		bus->mmio = SPI;
+		bus->nm = "SPI";
+                smi = bus;
 	} else {
 		crit_err_exit(BAD_PARAMETER);
 	}
 #elif defined(ID_SPI0) && !defined(ID_SPI1)
-	if (spi->id == ID_SPI0) {
-		spi->mmio = SPI0;
-                smi0 = spi;
+	if (bus->id == ID_SPI0) {
+		bus->mmio = SPI0;
+		bus->nm = "SPI0";
+                smi0 = bus;
 	} else {
 		crit_err_exit(BAD_PARAMETER);
 	}
 #elif defined(ID_SPI0) && defined(ID_SPI1)
-	if (spi->id == ID_SPI0) {
-		spi->mmio = SPI0;
-                smi0 = spi;
-	} else if (spi->id == ID_SPI1) {
-		spi->mmio = SPI1;
-                smi1 = spi;
+	if (bus->id == ID_SPI0) {
+		bus->mmio = SPI0;
+		bus->nm = "SPI0";
+                smi0 = bus;
+	} else if (bus->id == ID_SPI1) {
+		bus->mmio = SPI1;
+		bus->nm = "SPI1";
+                smi1 = bus;
 	} else {
 		crit_err_exit(BAD_PARAMETER);
 	}
 #else
  #error "ID_SPI not defined"
 #endif
-	memset(&spi->stats, 0, sizeof(struct spim_stats));
-	if (spi->sig == NULL) {
-		if (NULL == (spi->sig = xSemaphoreCreateBinary())) {
+	memset(&bus->stats, 0, sizeof(struct spi_stats));
+	if (bus->sig == NULL) {
+		if (NULL == (bus->sig = xSemaphoreCreateBinary())) {
 			crit_err_exit(MALLOC_ERROR);
 		}
 	} else {
 		crit_err_exit(UNEXP_PROG_STATE);
 	}
-        enable_periph_clk(spi->id);
-        ((Spi *) spi->mmio)->SPI_CR = SPI_CR_SWRST;
-	((Spi *) spi->mmio)->SPI_CR = SPI_CR_SPIDIS;
-	((Spi *) spi->mmio)->SPI_PTCR = SPI_PTCR_RXTDIS | SPI_PTCR_TXTDIS;
-	((Spi *) spi->mmio)->SPI_IDR = ~0;
-	NVIC_ClearPendingIRQ(spi->id);
-	((Spi *) spi->mmio)->SPI_MR = SPI_MR_DLYBCS(spi->dlybcs) | SPI_MR_MODFDIS | SPI_MR_MSTR;
-	NVIC_SetPriority(spi->id, configLIBRARY_MAX_API_CALL_INTERRUPT_PRIORITY);
-	NVIC_EnableIRQ(spi->id);
-	disable_periph_clk(spi->id);
+        enable_periph_clk(bus->id);
+        ((Spi *) bus->mmio)->SPI_CR = SPI_CR_SWRST;
+	((Spi *) bus->mmio)->SPI_CR = SPI_CR_SPIDIS;
+	((Spi *) bus->mmio)->SPI_PTCR = SPI_PTCR_RXTDIS | SPI_PTCR_TXTDIS;
+	((Spi *) bus->mmio)->SPI_IDR = ~0;
+	NVIC_ClearPendingIRQ(bus->id);
+	((Spi *) bus->mmio)->SPI_MR = SPI_MR_DLYBCS(bus->dlybcs) | SPI_MR_MODFDIS | SPI_MR_MSTR;
+	NVIC_SetPriority(bus->id, configLIBRARY_MAX_API_CALL_INTERRUPT_PRIORITY);
+	NVIC_EnableIRQ(bus->id);
+	disable_periph_clk(bus->id);
 }
 
 /**
  * spi_trans
  */
-int spi_trans(spim spi, spim_csel csel, void *buf0, int size0, void *buf1, int size1,
+int spi_trans(spibus bus, spi_csel csel, void *buf0, int size0, void *buf1, int size1,
               boolean_t dma)
 {
 	int ret = 0;
 	unsigned int ui, sr;
 
-	if (!(size0 || size1)) {
-		return (0);
+	if (size0 <= 0) {
+		crit_err_exit(BAD_PARAMETER);
 	}
-	if (spi->mtx != NULL && !csel->csel_ext) {
-		xSemaphoreTake(spi->mtx, portMAX_DELAY);
+	if (bus->mtx != NULL && !csel->csel_ext) {
+		xSemaphoreTake(bus->mtx, portMAX_DELAY);
 	}
-#if SPIM_CSEL_LINE_ERR == 1
+#if SPI_CSEL_LINE_ERR == 1
 	if (!csel->csel_ext && !(((Pio *) csel->csel_cont)->PIO_PDSR & csel->csel_pin)) {
-		spi->stats.csel_err = 1;
-		if (spi->mtx != NULL) {
-			xSemaphoreGive(spi->mtx);
+		bus->stats.csel_err = 1;
+		if (bus->mtx != NULL) {
+			xSemaphoreGive(bus->mtx);
 		}
 		return (-EHW);
 	}
 #endif
-	spi->act_csel = csel;
-	enable_periph_clk(spi->id);
-	ui = ((Spi *) spi->mmio)->SPI_MR;
+	bus->act_csel = csel;
+	enable_periph_clk(bus->id);
+	ui = ((Spi *) bus->mmio)->SPI_MR;
 	ui &= ~SPI_MR_PCS_Msk;
-	if (ui != (SPI_MR_MODFDIS | SPI_MR_MSTR)) {
-		spi->stats.mr_cfg_err = 1;
+	if ((ui & (SPI_MR_MODFDIS | SPI_MR_MSTR)) != (SPI_MR_MODFDIS | SPI_MR_MSTR)) {
+		bus->stats.mr_cfg_err = 1;
 		ret = -EHW;
 		goto err_exit;
 	}
 	ui |= SPI_MR_PCS(pcs_fld(csel->csn));
-	((Spi *) spi->mmio)->SPI_MR = ui;
+	((Spi *) bus->mmio)->SPI_MR = ui;
 	if (csel->ini) {
-		((Spi *) spi->mmio)->SPI_CSR[csel->csn] = csel->csr = csr_reg(csel);
+		((Spi *) bus->mmio)->SPI_CSR[csel->csn] = csel->csr = csr_reg(csel);
 		csel->ini = FALSE;
 	} else {
-		((Spi *) spi->mmio)->SPI_CSR[csel->csn] = csel->csr;
+		((Spi *) bus->mmio)->SPI_CSR[csel->csn] = csel->csr;
 	}
-	((Spi *) spi->mmio)->SPI_CR = SPI_CR_SPIEN;
-	sr = ((Spi *) spi->mmio)->SPI_SR;
+	((Spi *) bus->mmio)->SPI_CR = SPI_CR_SPIEN;
+	sr = ((Spi *) bus->mmio)->SPI_SR;
 	sr &= SPI_SR_TDRE | SPI_SR_TXEMPTY;
 	if (sr != (SPI_SR_TDRE | SPI_SR_TXEMPTY)) {
-		spi->stats.tx_start_err = 1;
+		bus->stats.tx_start_err = 1;
 		ret = -EHW;
 		goto err_exit;
 	}
 	if ((csel->dma = dma) == DMA_ON) {
-		((Spi *) spi->mmio)->SPI_RPR = (unsigned int) buf0;
-		((Spi *) spi->mmio)->SPI_RCR = size0;
-		((Spi *) spi->mmio)->SPI_TPR = (unsigned int) buf0;
-		((Spi *) spi->mmio)->SPI_TCR = size0;
-		((Spi *) spi->mmio)->SPI_RNPR = (unsigned int) buf1;
-		((Spi *) spi->mmio)->SPI_RNCR = size1;
-		((Spi *) spi->mmio)->SPI_TNPR = (unsigned int) buf1;
-		((Spi *) spi->mmio)->SPI_TNCR = size1;
+		((Spi *) bus->mmio)->SPI_RPR = (unsigned int) buf0;
+		((Spi *) bus->mmio)->SPI_RCR = size0;
+		((Spi *) bus->mmio)->SPI_TPR = (unsigned int) buf0;
+		((Spi *) bus->mmio)->SPI_TCR = size0;
+		((Spi *) bus->mmio)->SPI_RNPR = (unsigned int) buf1;
+		((Spi *) bus->mmio)->SPI_RNCR = size1;
+		((Spi *) bus->mmio)->SPI_TNPR = (unsigned int) buf1;
+		((Spi *) bus->mmio)->SPI_TNCR = size1;
                 barrier();
-                ((Spi *) spi->mmio)->SPI_IER = SPI_IER_RXBUFF;
-		((Spi *) spi->mmio)->SPI_PTCR = SPI_PTCR_RXTEN | SPI_PTCR_TXTEN;
-                if (pdFALSE == xSemaphoreTake(spi->sig, WAIT_PDC_INTR)) {
-			((Spi *) spi->mmio)->SPI_IDR = ~0;
-                        xSemaphoreTake(spi->sig, 0);
-                        spi->stats.dma_err = 1;
+                ((Spi *) bus->mmio)->SPI_IER = SPI_IER_RXBUFF;
+		((Spi *) bus->mmio)->SPI_PTCR = SPI_PTCR_RXTEN | SPI_PTCR_TXTEN;
+                if (pdFALSE == xSemaphoreTake(bus->sig, WAIT_PDC_INTR)) {
+			((Spi *) bus->mmio)->SPI_IDR = ~0;
+                        xSemaphoreTake(bus->sig, 0);
+                        bus->stats.dma_err = 1;
 			ret = -EDMA;
 			goto err_exit;
 		}
-		if (((Spi *) spi->mmio)->SPI_RPR != ((Spi *) spi->mmio)->SPI_TPR ||
-		    ((Spi *) spi->mmio)->SPI_RNPR != ((Spi *) spi->mmio)->SPI_TNPR ||
-		    ((Spi *) spi->mmio)->SPI_RCR || ((Spi *) spi->mmio)->SPI_TCR ||
-		    ((Spi *) spi->mmio)->SPI_RNCR || ((Spi *) spi->mmio)->SPI_TNCR) {
-			spi->stats.dma_err = 1;
+		if (((Spi *) bus->mmio)->SPI_RPR != ((Spi *) bus->mmio)->SPI_TPR ||
+		    ((Spi *) bus->mmio)->SPI_RNPR != ((Spi *) bus->mmio)->SPI_TNPR ||
+		    ((Spi *) bus->mmio)->SPI_RCR || ((Spi *) bus->mmio)->SPI_TCR ||
+		    ((Spi *) bus->mmio)->SPI_RNCR || ((Spi *) bus->mmio)->SPI_TNCR) {
+			bus->stats.dma_err = 1;
 			ret = -EDMA;
 			goto err_exit;
 		}
@@ -194,68 +198,60 @@ int spi_trans(spim spi, spim_csel csel, void *buf0, int size0, void *buf1, int s
 		csel->size0 = size0;
 		csel->buf1 = buf1;
                 csel->size1 = size1;
-		if (size0 > 0) {
-			csel->bufn = 0;
-			if (csel->bits == SPIM_8_BIT_TRANS) {
-				((Spi *) spi->mmio)->SPI_TDR = *((uint8_t *) csel->buf0);
-                                csel->buf0 = (uint8_t *) csel->buf0 + 1;
-			} else {
-				((Spi *) spi->mmio)->SPI_TDR = *((uint16_t *) csel->buf0);
-                                csel->buf0 = (uint16_t *) csel->buf0 + 1;
-			}
-                        csel->size0--;
+		csel->bufn = 0;
+		if (csel->bits == SPI_8_BIT_TRANS) {
+			((Spi *) bus->mmio)->SPI_TDR = *((uint8_t *) csel->buf0);
+			csel->buf0 = (uint8_t *) csel->buf0 + 1;
 		} else {
-			csel->bufn = 1;
-			if (csel->bits == SPIM_8_BIT_TRANS) {
-				((Spi *) spi->mmio)->SPI_TDR = *((uint8_t *) csel->buf1);
-                                csel->buf1 = (uint8_t *) csel->buf1 + 1;
-			} else {
-				((Spi *) spi->mmio)->SPI_TDR = *((uint16_t *) csel->buf1);
-                                csel->buf1 = (uint16_t *) csel->buf1 + 1;
-			}
-                        csel->size1--;
+			((Spi *) bus->mmio)->SPI_TDR = *((uint16_t *) csel->buf0);
+			csel->buf0 = (uint16_t *) csel->buf0 + 1;
 		}
+		csel->size0--;
                 barrier();
-                ((Spi *) spi->mmio)->SPI_IER = SPI_IER_RDRF;
-                if (pdFALSE == xSemaphoreTake(spi->sig, portMAX_DELAY) ||
+                ((Spi *) bus->mmio)->SPI_IER = SPI_IER_RDRF;
+                if (pdFALSE == xSemaphoreTake(bus->sig, portMAX_DELAY) ||
 		    csel->size0 || csel->size1) {
-			((Spi *) spi->mmio)->SPI_IDR = ~0;
-                        spi->stats.rdrf_err = 1;
+			((Spi *) bus->mmio)->SPI_IDR = ~0;
+                        bus->stats.rdrf_err = 1;
 			ret = -EHW;
 			goto err_exit;
 		}
 	} else {
-		if (size0 > 0) {
-			if (!trans_poll(spi, buf0, size0)) {
-				ret = -EHW;
-				goto err_exit;
-			}
+		if (!trans_poll(bus, buf0, size0)) {
+			ret = -EHW;
+			goto err_exit;
 		}
                 if (size1 > 0) {
-			if (!trans_poll(spi, buf1, size1)) {
+			if (!trans_poll(bus, buf1, size1)) {
 				ret = -EHW;
 				goto err_exit;
 			}
 		}
 	}
-	if (!(((Spi *) spi->mmio)->SPI_SR & SPI_SR_TXEMPTY)) {
-		spi->stats.tx_end_err = 1;
+	int cnt;
+	for (cnt = 0; cnt < HW_RESP_TMOUT; cnt++) {
+		if (((Spi *) bus->mmio)->SPI_SR & SPI_SR_TXEMPTY) {
+			break;
+		}
+	}
+	if (cnt == HW_RESP_TMOUT) {
+		bus->stats.tx_end_err = 1;
 		ret = -EHW;
 		goto err_exit;
 	}
-	spi->stats.trans += size0 + size1;
+	bus->stats.trans += size0 + size1;
         csel->stats_trans += size0 + size1;
 err_exit:
-	((Spi *) spi->mmio)->SPI_CR = SPI_CR_SPIDIS;
-	disable_periph_clk(spi->id);
-#if SPIM_CSEL_LINE_ERR == 1
+	((Spi *) bus->mmio)->SPI_CR = SPI_CR_SPIDIS;
+	disable_periph_clk(bus->id);
+#if SPI_CSEL_LINE_ERR == 1
 	if (!csel->csel_ext && !ret && !(((Pio *) csel->csel_cont)->PIO_PDSR & csel->csel_pin)) {
-		spi->stats.csel_err = 1;
+		bus->stats.csel_err = 1;
 		ret = -EHW;
 	}
 #endif
-	if (spi->mtx != NULL && !csel->csel_ext) {
-		xSemaphoreGive(spi->mtx);
+	if (bus->mtx != NULL && !csel->csel_ext) {
+		xSemaphoreGive(bus->mtx);
 	}
 	return (ret);
 }
@@ -263,29 +259,29 @@ err_exit:
 /**
  * trans_poll
  */
-static boolean_t trans_poll(spim spi, void *buf, int size)
+static boolean_t trans_poll(spibus bus, void *buf, int size)
 {
 	int cnt;
 
 	for (int i = 0; i < size; i++) {
-		if (spi->act_csel->bits == SPIM_8_BIT_TRANS) {
-			((Spi *) spi->mmio)->SPI_TDR = *((uint8_t *) buf + i);
+		if (bus->act_csel->bits == SPI_8_BIT_TRANS) {
+			((Spi *) bus->mmio)->SPI_TDR = *((uint8_t *) buf + i);
 		} else {
-			((Spi *) spi->mmio)->SPI_TDR = *((uint16_t *) buf + i);
+			((Spi *) bus->mmio)->SPI_TDR = *((uint16_t *) buf + i);
 		}
 		for (cnt = 0; cnt < HW_RESP_TMOUT; cnt++) {
-			if (((Spi *) spi->mmio)->SPI_SR & SPI_SR_RDRF) {
+			if (((Spi *) bus->mmio)->SPI_SR & SPI_SR_RDRF) {
 				break;
 			}
 		}
 		if (cnt == HW_RESP_TMOUT) {
-			spi->stats.poll_err = 1;
+			bus->stats.poll_err = 1;
 			return (FALSE);
 		}
-		if (spi->act_csel->bits == SPIM_8_BIT_TRANS) {
-			*((uint8_t *) buf + i) = ((Spi *) spi->mmio)->SPI_RDR;
+		if (bus->act_csel->bits == SPI_8_BIT_TRANS) {
+			*((uint8_t *) buf + i) = ((Spi *) bus->mmio)->SPI_RDR;
 		} else {
-			*((uint16_t *) buf + i) = ((Spi *) spi->mmio)->SPI_RDR;
+			*((uint16_t *) buf + i) = ((Spi *) bus->mmio)->SPI_RDR;
 		}
 	}
 	return (TRUE);
@@ -294,7 +290,7 @@ static boolean_t trans_poll(spim spi, void *buf, int size)
 /**
  * csr_reg
  */
-static unsigned int csr_reg(spim_csel csel)
+static unsigned int csr_reg(spi_csel csel)
 {
 	unsigned int ui;
 
@@ -309,15 +305,15 @@ static unsigned int csr_reg(spim_csel csel)
 /**
  * pcs_fld
  */
-static enum spi_pcs pcs_fld(enum spim_csel_num csn)
+static enum spi_pcs pcs_fld(enum spi_csel_num csn)
 {
-	if (csn == SPIM_CSEL0) {
+	if (csn == SPI_CSEL0) {
 		return (SPI_PCS0);
-	} else if (csn == SPIM_CSEL1) {
+	} else if (csn == SPI_CSEL1) {
 		return (SPI_PCS1);
-	} else if (csn == SPIM_CSEL2) {
+	} else if (csn == SPI_CSEL2) {
 		return (SPI_PCS2);
-	} else if (csn == SPIM_CSEL3) {
+	} else if (csn == SPI_CSEL3) {
 		return (SPI_PCS3);
 	} else {
 		crit_err_exit(BAD_PARAMETER);
@@ -328,61 +324,61 @@ static enum spi_pcs pcs_fld(enum spim_csel_num csn)
 /**
  * spi_hndlr
  */
-static BaseType_t spi_hndlr(spim spi)
+static BaseType_t spi_hndlr(spibus bus)
 {
 	unsigned int sr;
         BaseType_t tsk_wkn = pdFALSE;
         int *p_sz;
 	void **p_bf;
 
-	sr = ((Spi *) spi->mmio)->SPI_SR;
-        sr &= ((Spi *) spi->mmio)->SPI_IMR;
-        spi->stats.intr++;
-	if (sr & SPI_SR_RDRF && spi->act_csel->dma == DMA_OFF) {
-		if (spi->act_csel->bufn == 1) {
-			p_sz = &spi->act_csel->size1;
-			p_bf = &spi->act_csel->buf1;
+	sr = ((Spi *) bus->mmio)->SPI_SR;
+        sr &= ((Spi *) bus->mmio)->SPI_IMR;
+        bus->stats.intr++;
+	if (sr & SPI_SR_RDRF && bus->act_csel->dma == DMA_OFF) {
+		if (bus->act_csel->bufn == 1) {
+			p_sz = &bus->act_csel->size1;
+			p_bf = &bus->act_csel->buf1;
 		} else {
-			p_sz = &spi->act_csel->size0;
-			p_bf = &spi->act_csel->buf0;
+			p_sz = &bus->act_csel->size0;
+			p_bf = &bus->act_csel->buf0;
 		}
-		if (spi->act_csel->bits == SPIM_8_BIT_TRANS) {
-			*((uint8_t *) *p_bf - 1) = ((Spi *) spi->mmio)->SPI_RDR;
+		if (bus->act_csel->bits == SPI_8_BIT_TRANS) {
+			*((uint8_t *) *p_bf - 1) = ((Spi *) bus->mmio)->SPI_RDR;
 		} else {
-			*((uint16_t *) *p_bf - 1) = ((Spi *) spi->mmio)->SPI_RDR;
+			*((uint16_t *) *p_bf - 1) = ((Spi *) bus->mmio)->SPI_RDR;
 		}
 		if (*p_sz == 0) {
-			if (spi->act_csel->bufn == 1) {
-				((Spi *) spi->mmio)->SPI_IDR = SPI_IDR_RDRF;
-                                xSemaphoreGiveFromISR(spi->sig, &tsk_wkn);
+			if (bus->act_csel->bufn == 1) {
+				((Spi *) bus->mmio)->SPI_IDR = SPI_IDR_RDRF;
+                                xSemaphoreGiveFromISR(bus->sig, &tsk_wkn);
                                 return (tsk_wkn);
 			} else {
-				if (spi->act_csel->size1 == 0) {
-					((Spi *) spi->mmio)->SPI_IDR = SPI_IDR_RDRF;
-                                        xSemaphoreGiveFromISR(spi->sig, &tsk_wkn);
+				if (bus->act_csel->size1 == 0) {
+					((Spi *) bus->mmio)->SPI_IDR = SPI_IDR_RDRF;
+                                        xSemaphoreGiveFromISR(bus->sig, &tsk_wkn);
                                         return (tsk_wkn);
 				} else {
-					spi->act_csel->bufn = 1;
-					p_sz = &spi->act_csel->size1;
-					p_bf = &spi->act_csel->buf1;
+					bus->act_csel->bufn = 1;
+					p_sz = &bus->act_csel->size1;
+					p_bf = &bus->act_csel->buf1;
 				}
 			}
 		}
-		if (spi->act_csel->bits == SPIM_8_BIT_TRANS) {
-			((Spi *) spi->mmio)->SPI_TDR = *((uint8_t *) *p_bf);
+		if (bus->act_csel->bits == SPI_8_BIT_TRANS) {
+			((Spi *) bus->mmio)->SPI_TDR = *((uint8_t *) *p_bf);
 			*p_bf = (uint8_t *) *p_bf + 1;
 		} else {
-			((Spi *) spi->mmio)->SPI_TDR = *((uint16_t *) *p_bf);
+			((Spi *) bus->mmio)->SPI_TDR = *((uint16_t *) *p_bf);
 			*p_bf = (uint16_t *) *p_bf + 1;
 		}
 		--*p_sz;
-	} else if (sr & SPI_SR_RXBUFF && spi->act_csel->dma == DMA_ON) {
-		((Spi *) spi->mmio)->SPI_PTCR = SPI_PTCR_RXTDIS | SPI_PTCR_TXTDIS;
-		((Spi *) spi->mmio)->SPI_IDR = SPI_IDR_RXBUFF;
-                xSemaphoreGiveFromISR(spi->sig, &tsk_wkn);
+	} else if (sr & SPI_SR_RXBUFF && bus->act_csel->dma == DMA_ON) {
+		((Spi *) bus->mmio)->SPI_PTCR = SPI_PTCR_RXTDIS | SPI_PTCR_TXTDIS;
+		((Spi *) bus->mmio)->SPI_IDR = SPI_IDR_RXBUFF;
+                xSemaphoreGiveFromISR(bus->sig, &tsk_wkn);
 	} else {
-		spi->stats.intr_err = 1;
-                ((Spi *) spi->mmio)->SPI_IDR = ~0;
+		bus->stats.intr_err = 1;
+                ((Spi *) bus->mmio)->SPI_IDR = ~0;
 	}
 	return (tsk_wkn);
 }
@@ -417,46 +413,106 @@ void SPI1_Handler(void)
 }
 #endif
 
+/**
+ * get_spi_by_per_id
+ */
+spibus get_spi_by_per_id(int per_id)
+{
+#ifdef ID_SPI
+	if (per_id == ID_SPI && smi) {
+		return (smi);
+	}
+#endif
+#ifdef ID_SPI0
+	if (per_id == ID_SPI0 && smi0) {
+		return (smi0);
+	}
+#endif
+#ifdef ID_SPI1
+	if (per_id == ID_SPI1 && smi1) {
+		return (smi1);
+	}
+#endif
+	crit_err_exit(BAD_PARAMETER);
+	return (NULL);
+}
+
+/**
+ * get_spi_by_dev_id
+ */
+spibus get_spi_by_dev_id(int dev_id)
+{
+#ifdef ID_SPI
+	if (dev_id == 0 && smi) {
+		return (smi);
+	}
+	crit_err_exit(BAD_PARAMETER);
+	return (NULL);
+#else
+	switch (dev_id) {
+#ifdef ID_SPI0
+	case 0 :
+		if (smi0) {
+			return (smi0);
+		}
+		break;
+#endif
+#ifdef ID_SPI1
+	case 1 :
+		if (smi1) {
+			return (smi1);
+		}
+		break;
+#endif
+	default:
+		break;
+	}
+#endif
+	crit_err_exit(BAD_PARAMETER);
+	return (NULL);
+}
+
 #if TERMOUT == 1
 /**
- * log_spim_stats
+ * log_spi_stats
  */
-void log_spim_stats(spim spi)
+void log_spi_stats(spibus bus)
 {
 	UBaseType_t pr;
 
 	pr = uxTaskPriorityGet(NULL);
         vTaskPrioritySet(NULL, configMAX_PRIORITIES - 1);
-        msg(INF, "spim.c: errors=");
-	if (spi->stats.tx_start_err) {
+        msg(INF, "spi.c: bus=%s\n", bus->nm);
+        msg(INF, "spi.c: errors=");
+	if (bus->stats.tx_start_err) {
 		msg(INF, "tx_start_err ");
 	}
-	if (spi->stats.tx_end_err) {
+	if (bus->stats.tx_end_err) {
 		msg(INF, "tx_end_err ");
 	}
-	if (spi->stats.mr_cfg_err) {
+	if (bus->stats.mr_cfg_err) {
 		msg(INF, "mr_cfg_err ");
 	}
-	if (spi->stats.dma_err) {
+	if (bus->stats.dma_err) {
 		msg(INF, "dma_err ");
 	}
-	if (spi->stats.rdrf_err) {
+	if (bus->stats.rdrf_err) {
 		msg(INF, "rdrf_err ");
 	}
-	if (spi->stats.intr_err) {
+	if (bus->stats.intr_err) {
 		msg(INF, "intr_err ");
 	}
-	if (spi->stats.poll_err) {
+	if (bus->stats.poll_err) {
 		msg(INF, "poll_err ");
 	}
-#if SPIM_CSEL_LINE_ERR == 1
-	if (spi->stats.csel_err) {
+#if SPI_CSEL_LINE_ERR == 1
+	if (bus->stats.csel_err) {
 		msg(INF, "csel_err ");
 	}
 #endif
 	msg(INF, "\n");
-        msg(INF, "spim.c: trans=%u\n", spi->stats.trans);
-	msg(INF, "spim.c: intr=%u\n", spi->stats.intr);
+        msg(INF, "spi.c: trans=%u\n", bus->stats.trans);
+	msg(INF, "spi.c: intr=%u\n", bus->stats.intr);
 	vTaskPrioritySet(NULL, pr);
 }
 #endif

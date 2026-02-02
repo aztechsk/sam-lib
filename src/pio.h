@@ -19,6 +19,14 @@
 #ifndef PIO_H
 #define PIO_H
 
+#ifndef GPIO_HAL_IMPL
+ #define GPIO_HAL_IMPL 0
+#endif
+
+#ifndef PINMUX_HAL_IMPL
+ #define PINMUX_HAL_IMPL 0
+#endif
+
 enum pio_func {
 	PIO_OUTPUT,
 	PIO_INPUT,
@@ -210,6 +218,19 @@ inline void enable_pin_intr(unsigned int pin, Pio *cont)
 inline void disable_pin_intr(unsigned int pin, Pio *cont)
 {
 	cont->PIO_IDR = pin;
+}
+
+/**
+ * is_pin_intr_enabled
+ *
+ * Is pin interrupt enabled?
+ *
+ * @pin: Pin position bit.
+ * @cont: PIO controller instance.
+ */
+inline boolean_t is_pin_intr_enabled(unsigned int pin, Pio *cont)
+{
+	return ((cont->PIO_IMR & pin) ? TRUE : FALSE);
 }
 
 /**

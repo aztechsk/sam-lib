@@ -4,62 +4,69 @@
     <configuration
       Name="Common"
       c_only_additional_options="-Wall;-Wextra;-Wstrict-prototypes;-Wmissing-prototypes;-Wmissing-declarations;-Wshadow;-Wpointer-arith;-Wbad-function-cast;-Wcast-align;-Wcast-qual;-Wjump-misses-init;-Wno-unused-parameter;-Wno-unused-but-set-variable;-Wundef"
-      c_system_include_directories="$(ProjectDir)/../freertos/src/inc"
-      c_user_include_directories="$(ProjectDir)/../ucdrv/inc;$(ProjectDir)/../inc;$(ProjectDir)/../sys/src"
+      c_system_include_directories="$(TargetsDir)/CMSIS_3/CMSIS/Include;$(ProjectDir)/../freertos/src/inc"
+      c_user_include_directories="$(ProjectDir)/../ucdrv/inc;$(ProjectDir)/../inc;$(ProjectDir)/../sys/src;$(ProjectDir)/../hal/src/inc"
       project_directory=""
       project_type="Library" />
+    <configuration Name="Release" gcc_optimization_level="Level 1" />
     <folder Name="src">
-      <file Name="led.c" file_name="src/led.c" />
-      <file Name="led.h" file_name="src/led.h" />
-      <file Name="ledui.c" file_name="src/ledui.c" />
-      <file Name="ledui.h" file_name="src/ledui.h" />
-      <file Name="criterr.c" file_name="src/criterr.c" />
-      <file Name="criterr.h" file_name="src/criterr.h" />
-      <file Name="wd.c" file_name="src/wd.c" />
-      <file Name="wd.h" file_name="src/wd.h" />
-      <file Name="matrix.c" file_name="src/matrix.c" />
-      <file Name="matrix.h" file_name="src/matrix.h" />
-      <file Name="rstc.c" file_name="src/rstc.c" />
-      <file Name="rstc.h" file_name="src/rstc.h" />
-      <file Name="supc.c" file_name="src/supc.c" />
-      <file Name="supc.h" file_name="src/supc.h" />
-      <file Name="pio.c" file_name="src/pio.c" />
-      <file Name="pio.h" file_name="src/pio.h" />
-      <file Name="uart.c" file_name="src/uart.c" />
-      <file Name="uart.h" file_name="src/uart.h" />
-      <file Name="pmc.c" file_name="src/pmc.c" />
-      <file Name="pmc.h" file_name="src/pmc.h" />
-      <file Name="tc.c" file_name="src/tc.c" />
-      <file Name="tc.h" file_name="src/tc.h" />
-      <file Name="usart.c" file_name="src/usart.c" />
-      <file Name="usart.h" file_name="src/usart.h" />
-      <file Name="dacc.c" file_name="src/dacc.c" />
-      <file Name="dacc.h" file_name="src/dacc.h" />
       <file Name="adc.c" file_name="src/adc.c" />
       <file Name="adc.h" file_name="src/adc.h" />
-      <file Name="eefc.c" file_name="src/eefc.c" />
-      <file Name="eefc.h" file_name="src/eefc.h" />
-      <file Name="spi.c" file_name="src/spi.c" />
-      <file Name="spi.h" file_name="src/spi.h" />
-      <file Name="hwerr.c" file_name="src/hwerr.c" />
-      <file Name="hwerr.h" file_name="src/hwerr.h" />
-      <file Name="shift165.c" file_name="src/shift165.c" />
-      <file Name="shift165.h" file_name="src/shift165.h" />
-      <file Name="shift164.c" file_name="src/shift164.c" />
-      <file Name="shift164.h" file_name="src/shift164.h" />
-      <file Name="chipid.c" file_name="src/chipid.c" />
-      <file Name="chipid.h" file_name="src/chipid.h" />
       <file Name="btn.c" file_name="src/btn.c" />
       <file Name="btn.h" file_name="src/btn.h" />
       <file Name="btn1.c" file_name="src/btn1.c" />
       <file Name="btn1.h" file_name="src/btn1.h" />
+      <file Name="chipid.c" file_name="src/chipid.c" />
+      <file Name="chipid.h" file_name="src/chipid.h" />
+      <file Name="criterr.c" file_name="src/criterr.c" />
+      <file Name="criterr.h" file_name="src/criterr.h" />
+      <file Name="dacc.c" file_name="src/dacc.c" />
+      <file Name="dacc.h" file_name="src/dacc.h" />
+      <file Name="dlycnt.c" file_name="src/dlycnt.c" />
+      <file Name="dlycnt.h" file_name="src/dlycnt.h" />
+      <file Name="eefc.c" file_name="src/eefc.c" />
+      <file Name="eefc.h" file_name="src/eefc.h" />
+      <file Name="gpio_hal_impl.c" file_name="src/gpio_hal_impl.c" />
+      <file Name="hsmci_sd.c" file_name="src/hsmci_sd.c" />
+      <file Name="hsmci_sd.h" file_name="src/hsmci_sd.h" />
+      <file Name="hwerr.c" file_name="src/hwerr.c" />
+      <file Name="hwerr.h" file_name="src/hwerr.h" />
       <file Name="i2c.c" file_name="src/i2c.c" />
       <file Name="i2c.h" file_name="src/i2c.h" />
-      <file Name="sleep.c" file_name="src/sleep.c" />
-      <file Name="sleep.h" file_name="src/sleep.h" />
+      <file Name="led.c" file_name="src/led.c" />
+      <file Name="led.h" file_name="src/led.h" />
+      <file Name="ledui.c" file_name="src/ledui.c" />
+      <file Name="ledui.h" file_name="src/ledui.h" />
+      <file Name="matrix.c" file_name="src/matrix.c" />
+      <file Name="matrix.h" file_name="src/matrix.h" />
       <file Name="pinmon.c" file_name="src/pinmon.c" />
       <file Name="pinmon.h" file_name="src/pinmon.h" />
+      <file Name="pinmux_hal_impl.c" file_name="src/pinmux_hal_impl.c" />
+      <file Name="pio.c" file_name="src/pio.c" />
+      <file Name="pio.h" file_name="src/pio.h" />
+      <file Name="pmc.c" file_name="src/pmc.c" />
+      <file Name="pmc.h" file_name="src/pmc.h" />
+      <file Name="rstc.c" file_name="src/rstc.c" />
+      <file Name="rstc.h" file_name="src/rstc.h" />
+      <file Name="shift164.c" file_name="src/shift164.c" />
+      <file Name="shift164.h" file_name="src/shift164.h" />
+      <file Name="shift165.c" file_name="src/shift165.c" />
+      <file Name="shift165.h" file_name="src/shift165.h" />
+      <file Name="sleep.c" file_name="src/sleep.c" />
+      <file Name="sleep.h" file_name="src/sleep.h" />
+      <file Name="spi.c" file_name="src/spi.c" />
+      <file Name="spi.h" file_name="src/spi.h" />
+      <file Name="spi_hal_impl.c" file_name="src/spi_hal_impl.c" />
+      <file Name="supc.c" file_name="src/supc.c" />
+      <file Name="supc.h" file_name="src/supc.h" />
+      <file Name="tc.c" file_name="src/tc.c" />
+      <file Name="tc.h" file_name="src/tc.h" />
+      <file Name="uart.c" file_name="src/uart.c" />
+      <file Name="uart.h" file_name="src/uart.h" />
+      <file Name="usart.c" file_name="src/usart.c" />
+      <file Name="usart.h" file_name="src/usart.h" />
+      <file Name="wd.c" file_name="src/wd.c" />
+      <file Name="wd.h" file_name="src/wd.h" />
     </folder>
-    <configuration Name="Release" gcc_optimization_level="Level 1" />
   </project>
 </solution>

@@ -34,6 +34,7 @@ extern inline void set_pin_lev(unsigned int pin, Pio *cont, boolean_t lev);
 extern inline boolean_t get_pin_out(unsigned int pin, Pio *cont);
 extern inline void enable_pin_intr(unsigned int pin, Pio *cont);
 extern inline void disable_pin_intr(unsigned int pin, Pio *cont);
+extern inline boolean_t is_pin_intr_enabled(unsigned int pin, Pio *cont);
 
 /**
  * conf_io_pin
@@ -43,6 +44,9 @@ void conf_io_pin(unsigned int pin, Pio *cont, enum pio_func func, ...)
 	va_list ap;
         enum pio_feat feat;
 
+	if (!pin || (pin & (pin - 1))) {
+		crit_err_exit(BAD_PARAMETER);
+	}
 	va_start(ap, func);
 	while ((feat = va_arg(ap, int)) != PIO_END_OF_FEAT) {
 		switch (feat) {
@@ -198,12 +202,16 @@ void conf_io_pin(unsigned int pin, Pio *cont, enum pio_func func, ...)
  */
 void set_io_dbnc_tm_us(Pio *cont, int utm)
 {
-	int div;
-
-	if (utm < 62 || utm > 999) {
+	if (utm < 61) {
 		crit_err_exit(BAD_PARAMETER);
 	}
-	div = (F_SLCK / 2 * utm / 1000000) - 1;
+	int div = (((uint64_t) utm * F_SLCK) + 1000000 - 1) / (2 * 1000000);
+	if(div) {
+		div--;
+	}
+	if (div > 0x3FFF) {
+		div = 0x3FFF;
+	}
 	cont->PIO_SCDR = PIO_SCDR_DIV(div);
 }
 
@@ -212,13 +220,18 @@ void set_io_dbnc_tm_us(Pio *cont, int utm)
  */
 void set_io_dbnc_tm_ms(Pio *cont, int mtm)
 {
-	int div = (F_SLCK / 2 * mtm / 1000) - 1;
+	int div;
 
-	if (div <= 16383) {
-		cont->PIO_SCDR = PIO_SCDR_DIV(div);
+	uint64_t num = mtm * (uint64_t) F_SLCK;
+	uint64_t div_u64 = (num + (2000 - 1)) / 2000;
+	if (div_u64 == 0) {
+		div = 0;
+	} else if (div_u64 - 1 > 0x3FFF) {
+	        div = 0x3FFF;
 	} else {
-		crit_err_exit(BAD_PARAMETER);
+	        div = div_u64 - 1;
 	}
+	cont->PIO_SCDR = PIO_SCDR_DIV(div);
 }
 
 #if PIOA_INTR == 1
@@ -314,9 +327,9 @@ boolean_t add_pio_intr_clbk(Pio *cont, BaseType_t (*clbk)(unsigned int))
 				if (!pioa_ini) {
 					pioa_ini = TRUE;
 					PIOA->PIO_ISR;
-                                        NVIC_ClearPendingIRQ(ID_PIOA);
-                                        NVIC_SetPriority(ID_PIOA, configLIBRARY_MAX_API_CALL_INTERRUPT_PRIORITY);
-                                        NVIC_EnableIRQ(ID_PIOA);
+                                        NVIC_ClearPendingIRQ(PIOA_IRQn);
+                                        NVIC_SetPriority(PIOA_IRQn, configLIBRARY_MAX_API_CALL_INTERRUPT_PRIORITY);
+                                        NVIC_EnableIRQ(PIOA_IRQn);
 				}
                                 taskEXIT_CRITICAL();
 				return (TRUE);
@@ -340,9 +353,9 @@ boolean_t add_pio_intr_clbk(Pio *cont, BaseType_t (*clbk)(unsigned int))
 				if (!piob_ini) {
 					piob_ini = TRUE;
 					PIOB->PIO_ISR;
-                                        NVIC_ClearPendingIRQ(ID_PIOB);
-                                        NVIC_SetPriority(ID_PIOB, configLIBRARY_MAX_API_CALL_INTERRUPT_PRIORITY);
-                                        NVIC_EnableIRQ(ID_PIOB);
+                                        NVIC_ClearPendingIRQ(PIOB_IRQn);
+                                        NVIC_SetPriority(PIOB_IRQn, configLIBRARY_MAX_API_CALL_INTERRUPT_PRIORITY);
+                                        NVIC_EnableIRQ(PIOB_IRQn);
 				}
                                 taskEXIT_CRITICAL();
 				return (TRUE);
@@ -366,9 +379,9 @@ boolean_t add_pio_intr_clbk(Pio *cont, BaseType_t (*clbk)(unsigned int))
 				if (!pioc_ini) {
 					pioc_ini = TRUE;
                                         PIOC->PIO_ISR;
-                                        NVIC_ClearPendingIRQ(ID_PIOC);
-                                        NVIC_SetPriority(ID_PIOC, configLIBRARY_MAX_API_CALL_INTERRUPT_PRIORITY);
-                                        NVIC_EnableIRQ(ID_PIOC);
+                                        NVIC_ClearPendingIRQ(PIOC_IRQn);
+                                        NVIC_SetPriority(PIOC_IRQn, configLIBRARY_MAX_API_CALL_INTERRUPT_PRIORITY);
+                                        NVIC_EnableIRQ(PIOC_IRQn);
 				}
                                 taskEXIT_CRITICAL();
 				return (TRUE);
@@ -507,22 +520,35 @@ void clear_pio_isr(Pio *cont)
  */
 enum pio_func get_pio_periph_abcd(unsigned int pin, Pio *cont)
 {
+	if (!pin || (pin & (pin - 1))) {
+		crit_err_exit(BAD_PARAMETER);
+	}
 	taskENTER_CRITICAL();
-	if (cont->PIO_ABCDSR[1] & pin) {
-		if (cont->PIO_ABCDSR[0] & pin) {
+	if (cont->PIO_PSR & pin) {
+		if (cont->PIO_OSR & pin) {
 			taskEXIT_CRITICAL();
-			return (PIO_PERIPH_D);
+			return (PIO_OUTPUT);
 		} else {
 			taskEXIT_CRITICAL();
-			return (PIO_PERIPH_C);
+			return (PIO_INPUT);
 		}
 	} else {
-		if (cont->PIO_ABCDSR[0] & pin) {
-			taskEXIT_CRITICAL();
-			return (PIO_PERIPH_B);
+		if (cont->PIO_ABCDSR[1] & pin) {
+			if (cont->PIO_ABCDSR[0] & pin) {
+				taskEXIT_CRITICAL();
+				return (PIO_PERIPH_D);
+			} else {
+				taskEXIT_CRITICAL();
+				return (PIO_PERIPH_C);
+			}
 		} else {
-			taskEXIT_CRITICAL();
-			return (PIO_PERIPH_A);
+			if (cont->PIO_ABCDSR[0] & pin) {
+				taskEXIT_CRITICAL();
+				return (PIO_PERIPH_B);
+			} else {
+				taskEXIT_CRITICAL();
+				return (PIO_PERIPH_A);
+			}
 		}
 	}
 }
