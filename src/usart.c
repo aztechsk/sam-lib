@@ -30,9 +30,24 @@
 #include "hwerr.h"
 #include "pmc.h"
 #include "usart.h"
+#if USART_RS485_PIN_DBG == 1
+#include "pio.h"
+#endif
 #include <string.h>
 
 #define WAIT_PDC_INTR (1000 / portTICK_PERIOD_MS)
+#define USART_TX_WAIT_CNT 1000000U
+
+#if USART_HDLC == 1
+#define USART_HDLC_MIN_BF_SZ 1
+#endif
+#if USART_ADR_HDLC == 1
+#define USART_ADR_HDLC_MIN_BF_SZ 3
+#endif
+
+#ifndef USART_BDR_ADV
+ #define USART_BDR_ADV 0
+#endif
 
 #if USART_YIT == 1
 enum {
@@ -67,6 +82,18 @@ static BaseType_t adr_hdlc_hndlr(usart dev);
 #if USART_YIT == 1
 static BaseType_t yit_hndlr(usart dev);
 #endif
+#if USART_RX_CHAR == 1 || USART_HDLC == 1 || USART_ADR_HDLC == 1 || USART_ADR_CHAR == 1 ||\
+    USART_YIT == 1
+static boolean_t wait_tx_flag(usart dev, unsigned int flag);
+static void abort_tx(usart dev);
+static boolean_t get_bdr_div(unsigned int mr, unsigned int *div);
+#if USART_RS485_PIN_DBG == 1
+static void rs485_pin_dbg(usart dev, unsigned int *cnt);
+#endif
+#if USART_BDR_ADV == 1
+static unsigned int calc_brgr(usart dev);
+#endif
+#endif
 
 #if USART_RX_CHAR == 1 || USART_HDLC == 1 || USART_ADR_HDLC == 1 || USART_ADR_CHAR == 1 ||\
     USART_YIT == 1
@@ -75,13 +102,17 @@ static BaseType_t yit_hndlr(usart dev);
  */
 void init_usart(usart dev, enum usart_mode m)
 {
-	NVIC_DisableIRQ(dev->id);
+	if (dev == NULL) {
+		crit_err_exit(BAD_PARAMETER);
+	}
 	if (dev->id == ID_USART0) {
+		NVIC_DisableIRQ(dev->id);
 		u0 = dev;
                 u0->mmio = USART0;
 		u0->dma = TRUE;
 #ifdef ID_USART1
 	} else if (dev->id == ID_USART1) {
+		NVIC_DisableIRQ(dev->id);
 		u1 = dev;
                 u1->mmio = USART1;
 #ifdef PDC_USART1
@@ -92,6 +123,7 @@ void init_usart(usart dev, enum usart_mode m)
 #endif
 #ifdef ID_USART2
 	} else if (dev->id == ID_USART2) {
+		NVIC_DisableIRQ(dev->id);
 		u2 = dev;
                 u2->mmio = USART2;
 #ifdef PDC_USART2
@@ -103,10 +135,27 @@ void init_usart(usart dev, enum usart_mode m)
 	} else {
 		crit_err_exit(BAD_PARAMETER);
 	}
+	if (dev->bdr < 1) {
+		crit_err_exit(BAD_PARAMETER);
+	}
+	if ((dev->mr & US_MR_USART_MODE_Msk) == US_MR_USART_MODE_SPI_MASTER ||
+	    (dev->mr & US_MR_USART_MODE_Msk) == US_MR_USART_MODE_SPI_SLAVE) {
+		crit_err_exit(BAD_PARAMETER);
+	}
+#if USART_RS485_PIN_DBG == 1
+	if ((dev->mr & US_MR_USART_MODE_Msk) == US_MR_USART_MODE_RS485) {
+		if (!dev->rs485_drv_pin || dev->rs485_drv_cont == NULL) {
+			crit_err_exit(BAD_PARAMETER);
+		}
+		memset(&dev->rs485_pin_dbg, 0, sizeof(dev->rs485_pin_dbg));
+	}
+#endif
 	switch (dev->mode = m) {
-#if USART_RX_CHAR == 1 || USART_ADR_CHAR == 1
+#if USART_RX_CHAR == 1
 	case USART_RX_CHAR_MODE :
-	case USART_ADR_CHAR_MODE :
+		if (dev->rx_que_sz < 1) {
+			crit_err_exit(BAD_PARAMETER);
+		}
 		if (dev->rx_que == NULL) {
 			dev->rx_que = xQueueCreate(dev->rx_que_sz, sizeof(uint16_t));
 			if (dev->rx_que == NULL) {
@@ -118,21 +167,48 @@ void init_usart(usart dev, enum usart_mode m)
 		dev->hndlr = rx_char_hndlr;
 		break;
 #endif
-#if USART_HDLC == 1 || USART_ADR_HDLC == 1
+#if USART_ADR_CHAR == 1
+	case USART_ADR_CHAR_MODE :
+		if ((dev->mr & US_MR_PAR_Msk) != US_MR_PAR_MULTIDROP) {
+			crit_err_exit(BAD_PARAMETER);
+		}
+		if (dev->rx_que_sz < 1) {
+			crit_err_exit(BAD_PARAMETER);
+		}
+		if (dev->rx_que == NULL) {
+			dev->rx_que = xQueueCreate(dev->rx_que_sz, sizeof(uint16_t));
+			if (dev->rx_que == NULL) {
+				crit_err_exit(MALLOC_ERROR);
+			}
+		} else {
+			crit_err_exit(UNEXP_PROG_STATE);
+		}
+		dev->hndlr = rx_char_hndlr;
+		break;
+#endif
+#if USART_HDLC == 1
 	case USART_HDLC_MODE :
-	case USART_ADR_HDLC_MODE :
+		if (dev->hdlc_bf_sz < USART_HDLC_MIN_BF_SZ) {
+			crit_err_exit(BAD_PARAMETER);
+		}
 		if (NULL == (dev->hdlc_mesg.pld = pvPortMalloc(dev->hdlc_bf_sz))) {
 			crit_err_exit(MALLOC_ERROR);
 		}
-		if (dev->mode == USART_HDLC_MODE) {
-#if USART_HDLC == 1
-			dev->hndlr = hdlc_hndlr;
+		dev->hndlr = hdlc_hndlr;
+		break;
 #endif
-		} else {
 #if USART_ADR_HDLC == 1
-			dev->hndlr = adr_hdlc_hndlr;
-#endif
+	case USART_ADR_HDLC_MODE :
+		if ((dev->mr & US_MR_PAR_Msk) != US_MR_PAR_MULTIDROP) {
+			crit_err_exit(BAD_PARAMETER);
 		}
+		if (dev->hdlc_bf_sz < USART_ADR_HDLC_MIN_BF_SZ) {
+			crit_err_exit(BAD_PARAMETER);
+		}
+		if (NULL == (dev->hdlc_mesg.pld = pvPortMalloc(dev->hdlc_bf_sz))) {
+			crit_err_exit(MALLOC_ERROR);
+		}
+		dev->hndlr = adr_hdlc_hndlr;
 		break;
 #endif
 #if USART_YIT == 1
@@ -177,7 +253,11 @@ void init_usart(usart dev, enum usart_mode m)
 	dev->mmio->US_CR = US_CR_RSTSTA | US_CR_RSTTX | US_CR_RSTRX;
 	NVIC_ClearPendingIRQ(dev->id);
 	dev->mmio->US_MR = dev->mr;
+#if USART_BDR_ADV == 1
+	dev->mmio->US_BRGR = calc_brgr(dev);
+#else
         dev->mmio->US_BRGR = F_MCK / 16 / dev->bdr;
+#endif
 	dev->mmio->US_RTOR = 0;
 	dev->mmio->US_TTGR = 0;
         dev->mmio->US_PTCR = US_PTCR_TXTDIS;
@@ -186,12 +266,58 @@ void init_usart(usart dev, enum usart_mode m)
 	dev->mmio->US_PTCR = US_PTCR_RXTDIS;
         dev->mmio->US_RCR = 0;
 	dev->mmio->US_RNCR = 0;
-	if (dev->mr & US_MR_USART_MODE_RS485) {
+	if ((dev->mr & US_MR_USART_MODE_Msk) == US_MR_USART_MODE_RS485) {
 		dev->mmio->US_CR = US_CR_TXEN;
 		dev->mmio->US_CR = US_CR_TXDIS;
 	}
         NVIC_SetPriority(dev->id, configLIBRARY_MAX_API_CALL_INTERRUPT_PRIORITY);
 	NVIC_EnableIRQ(dev->id);
+}
+
+/**
+ * usart_get_bdr_info
+ */
+boolean_t usart_get_bdr_info(usart dev, struct usart_bdr_info *info)
+{
+	unsigned int cd;
+	unsigned int den;
+	long long target;
+	long long err;
+
+	if (dev == NULL || info == NULL || dev->mmio == NULL || dev->bdr < 1) {
+		return (FALSE);
+	}
+	info->mr = dev->mmio->US_MR;
+	info->brgr = dev->mmio->US_BRGR;
+	info->req_bdr = dev->bdr;
+	info->div = 0;
+	info->act_bdr = 0;
+	info->err_ppm = 0;
+	if (!get_bdr_div(info->mr, &info->div)) {
+		return (FALSE);
+	}
+	/*
+	 * Fractional BRGR is not supported by this diagnostic yet.
+	 */
+	if (info->brgr & 0xffff0000U) {
+		return (FALSE);
+	}
+	cd = info->brgr & 0xffffU;
+	if (!cd) {
+		return (FALSE);
+	}
+	den = info->div * cd;
+	info->act_bdr = (F_MCK + den / 2U) / den;
+
+	target = (long long) info->req_bdr * den;
+	err = ((long long) F_MCK - target) * 1000000LL;
+	if (err >= 0) {
+		err += target / 2;
+	} else {
+		err -= target / 2;
+	}
+	info->err_ppm = (int) (err / target);
+	return (TRUE);
 }
 #endif
 
@@ -237,9 +363,15 @@ void disable_usart(void *dev)
  */
 int usart_tx_buff(void *dev, void *p_buf, int size)
 {
-        if (size < 1) {
-                return (0);
-        }
+	if (size < 0) {
+		crit_err_exit(BAD_PARAMETER);
+	}
+	if (!size) {
+		return (0);
+	}
+#if USART_RS485_PIN_DBG == 1
+	rs485_pin_dbg((usart) dev, ((usart) dev)->rs485_pin_dbg.tx_beg);
+#endif
 	if (((usart) dev)->dma) {
 		((usart) dev)->mmio->US_TCR = size;
 		((usart) dev)->mmio->US_TPR = (unsigned int) p_buf;
@@ -248,26 +380,21 @@ int usart_tx_buff(void *dev, void *p_buf, int size)
 		((usart) dev)->mmio->US_PTCR = US_PTCR_TXTEN;
 		if (pdFALSE == xSemaphoreTake(((usart) dev)->sig_tx, WAIT_PDC_INTR) ||
 		    ((usart) dev)->mmio->US_TCR != 0) {
-			((usart) dev)->mmio->US_IDR = US_IDR_ENDTX;
-			((usart) dev)->mmio->US_PTCR = US_PTCR_TXTDIS;
-			((usart) dev)->mmio->US_TCR = 0;
-			((usart) dev)->mmio->US_CR = US_CR_RSTTX;
-			if (((usart) dev)->mr & US_MR_USART_MODE_RS485) {
-				((usart) dev)->mmio->US_CR = US_CR_TXEN;
-			}
-                        ((usart) dev)->mmio->US_CR = US_CR_TXDIS;
+			abort_tx((usart) dev);
 			xSemaphoreTake(((usart) dev)->sig_tx, 0);
 			return (-EDMA);
 		}
-		while (!(((usart) dev)->mmio->US_CSR & US_CSR_TXEMPTY)) {
-			;
+		if (wait_tx_flag((usart) dev, US_CSR_TXEMPTY) != TRUE) {
+			abort_tx((usart) dev);
+			return (-EHW);
 		}
 		((usart) dev)->mmio->US_PTCR = US_PTCR_TXTDIS;
 	} else {
 		((usart) dev)->mmio->US_CR = US_CR_TXEN;
 		for (int i = 0; i < size; i++) {
-			while (!(((usart) dev)->mmio->US_CSR & US_CSR_TXRDY)) {
-				;
+			if (wait_tx_flag((usart) dev, US_CSR_TXRDY) != TRUE) {
+				abort_tx((usart) dev);
+				return (-EHW);
 			}
 			if (((usart) dev)->mmio->US_MR & US_MR_MODE9) {
 				((usart) dev)->mmio->US_THR = *((uint16_t *) p_buf + i);
@@ -275,11 +402,16 @@ int usart_tx_buff(void *dev, void *p_buf, int size)
 				((usart) dev)->mmio->US_THR = *((uint8_t *) p_buf + i);
 			}
 		}
-		while (!(((usart) dev)->mmio->US_CSR & US_CSR_TXEMPTY)) {
-			;
-		}
+		if (wait_tx_flag((usart) dev, US_CSR_TXEMPTY) != TRUE) {
+			abort_tx((usart) dev);
+			return (-EHW);
+ 		}
 	}
         ((usart) dev)->mmio->US_CR = US_CR_TXDIS;
+#if USART_RS485_PIN_DBG == 1
+	barrier();
+	rs485_pin_dbg((usart) dev, ((usart) dev)->rs485_pin_dbg.tx_end);
+#endif
         return (0);
 }
 #endif
@@ -353,7 +485,9 @@ static BaseType_t rx_char_hndlr(usart dev)
 			d |= (sr & 0xE0) << 8;
 			dev->mmio->US_CR = US_CR_RSTSTA;
 		}
-		xQueueSendFromISR(dev->rx_que, &d, &tsk_wkn);
+		if (pdTRUE != xQueueSendFromISR(dev->rx_que, &d, &tsk_wkn)) {
+			dev->rx_que_ovr++;
+		}
 	} else if (sr & US_CSR_ENDTX && dev->mmio->US_IMR & US_IMR_ENDTX) {
         	dev->mmio->US_IDR = US_IDR_ENDTX;
                 xSemaphoreGiveFromISR(dev->sig_tx, &tsk_wkn);
@@ -379,7 +513,10 @@ int usart_tx_hdlc_mesg(usart dev, uint8_t *pld, int size)
 {
 	int sz = 1;
 
-	if (size < 1) {
+	if (size < 0) {
+		crit_err_exit(BAD_PARAMETER);
+	}
+	if (!size) {
 		return (0);
 	}
 	*dev->hdlc_mesg.pld = dev->HDLC_FLAG;
@@ -513,7 +650,7 @@ int usart_tx_adr_hdlc_mesg(usart dev, uint8_t *pld, int size, uint8_t adr)
         int sz = 2;
 
 	if (size < 0) {
-		return (0);
+		crit_err_exit(BAD_PARAMETER);
 	}
 	*dev->hdlc_mesg.pld = adr;
 	*(dev->hdlc_mesg.pld + 1) = dev->HDLC_FLAG;
@@ -538,6 +675,9 @@ int usart_tx_adr_hdlc_mesg(usart dev, uint8_t *pld, int size, uint8_t adr)
 		}
 	}
 	*(dev->hdlc_mesg.pld + sz++) = dev->HDLC_FLAG;
+#if USART_RS485_PIN_DBG == 1
+	rs485_pin_dbg(dev, dev->rs485_pin_dbg.tx_beg);
+#endif
 	if (dev->dma) {
 		dev->mmio->US_TCR = sz;
 		dev->mmio->US_TPR = (unsigned int) dev->hdlc_mesg.pld;
@@ -547,35 +687,35 @@ int usart_tx_adr_hdlc_mesg(usart dev, uint8_t *pld, int size, uint8_t adr)
 		dev->mmio->US_PTCR = US_PTCR_TXTEN;
 		if (pdFALSE == xSemaphoreTake(dev->sig_tx, WAIT_PDC_INTR) ||
 		    dev->mmio->US_TCR != 0) {
-			dev->mmio->US_IDR = US_IDR_ENDTX;
-			dev->mmio->US_PTCR = US_PTCR_TXTDIS;
-			dev->mmio->US_TCR = 0;
-			dev->mmio->US_CR = US_CR_RSTTX;
-                        if (dev->mr & US_MR_USART_MODE_RS485) {
-				dev->mmio->US_CR = US_CR_TXEN;
-			}
-			dev->mmio->US_CR = US_CR_TXDIS;
+			abort_tx(dev);
 			xSemaphoreTake(dev->sig_tx, 0);
 			return (-EDMA);
 		}
-		while (!(dev->mmio->US_CSR & US_CSR_TXEMPTY)) {
-			;
-		}
+		if (wait_tx_flag(dev, US_CSR_TXEMPTY) != TRUE) {
+			abort_tx(dev);
+			return (-EHW);
+ 		}
 		dev->mmio->US_PTCR = US_PTCR_TXTDIS;
 	} else {
 		dev->mmio->US_CR = US_CR_TXEN;
 		dev->mmio->US_CR = US_CR_SENDA;
 		for (int i = 0; i < sz; i++) {
-			while (!(dev->mmio->US_CSR & US_CSR_TXRDY)) {
-				;
-			}
+			if (wait_tx_flag(dev, US_CSR_TXRDY) != TRUE) {
+				abort_tx(dev);
+				return (-EHW);
+ 			}
 			dev->mmio->US_THR = *(dev->hdlc_mesg.pld + i);
 		}
-		while (!(dev->mmio->US_CSR & US_CSR_TXEMPTY)) {
-			;
-		}
+		if (wait_tx_flag(dev, US_CSR_TXEMPTY) != TRUE) {
+			abort_tx(dev);
+			return (-EHW);
+ 		}
 	}
         dev->mmio->US_CR = US_CR_TXDIS;
+#if USART_RS485_PIN_DBG == 1
+	barrier();
+	rs485_pin_dbg(dev, dev->rs485_pin_dbg.tx_end);
+#endif
         return (0);
 }
 
@@ -584,9 +724,6 @@ int usart_tx_adr_hdlc_mesg(usart dev, uint8_t *pld, int size, uint8_t adr)
  */
 struct hdlc_mesg *usart_rx_adr_hdlc_mesg(usart dev, TickType_t tmo)
 {
-#if USART_ADR_HDLC_EXT_STATS == 1
-	memset(dev->hdlc_mesg.pld, 0xCC, dev->hdlc_bf_sz);
-#endif
 	dev->rcv_st = HDLC_RCV_WAIT_ADDR;
         dev->mmio->US_CR = US_CR_RSTRX;
         barrier();
@@ -650,8 +787,10 @@ static BaseType_t adr_hdlc_hndlr(usart dev)
 					dev->adr_hdlc_ext_stats.was_perr = TRUE;
 					dev->adr_hdlc_ext_stats.perr_adr = d;
 					dev->adr_hdlc_ext_stats.perr_sz = dev->hdlc_mesg.sz;
-                                        dev->adr_hdlc_ext_stats.perr_dump[0] = dev->hdlc_mesg.adr;
-					for (int i = 0; i < USART_ADR_HDLC_PERR_DUMP_SIZE - 1; i++) {
+					memset(dev->adr_hdlc_ext_stats.perr_dump, 0xCC, USART_ADR_HDLC_PERR_DUMP_SIZE);
+					dev->adr_hdlc_ext_stats.perr_dump[0] = dev->hdlc_mesg.adr;
+					for (int i = 0; i < dev->hdlc_mesg.sz &&
+					     i < USART_ADR_HDLC_PERR_DUMP_SIZE - 1; i++) {
 						dev->adr_hdlc_ext_stats.perr_dump[i + 1] = *(dev->hdlc_mesg.pld + i);
 					}
 				}
@@ -722,9 +861,15 @@ static BaseType_t adr_hdlc_hndlr(usart dev)
  */
 int usart_tx_adr_buff(usart dev, void *p_buf, int size)
 {
-        if (size < 1) {
-                return (0);
-        }
+	if (size < 0) {
+		crit_err_exit(BAD_PARAMETER);
+	}
+	if (!size) {
+		return (0);
+	}
+#if USART_RS485_PIN_DBG == 1
+	rs485_pin_dbg(dev, dev->rs485_pin_dbg.tx_beg);
+#endif
         if (dev->dma) {
 		dev->mmio->US_TCR = size;
 		dev->mmio->US_TPR = (unsigned int) p_buf;
@@ -734,39 +879,39 @@ int usart_tx_adr_buff(usart dev, void *p_buf, int size)
 		dev->mmio->US_PTCR = US_PTCR_TXTEN;
 		if (pdFALSE == xSemaphoreTake(dev->sig_tx, WAIT_PDC_INTR) ||
 		    dev->mmio->US_TCR != 0) {
-			dev->mmio->US_IDR = US_IDR_ENDTX;
-			dev->mmio->US_PTCR = US_PTCR_TXTDIS;
-			dev->mmio->US_TCR = 0;
-			dev->mmio->US_CR = US_CR_RSTTX;
-			if (dev->mr & US_MR_USART_MODE_RS485) {
-				dev->mmio->US_CR = US_CR_TXEN;
-			}
-			dev->mmio->US_CR = US_CR_TXDIS;
+			abort_tx(dev);
 			xSemaphoreTake(dev->sig_tx, 0);
 			return (-EDMA);
 		}
-		while (!(dev->mmio->US_CSR & US_CSR_TXEMPTY)) {
-			;
-		}
+		if (wait_tx_flag(dev, US_CSR_TXEMPTY) != TRUE) {
+			abort_tx(dev);
+			return (-EHW);
+ 		}
 		dev->mmio->US_PTCR = US_PTCR_TXTDIS;
 	} else {
 		dev->mmio->US_CR = US_CR_TXEN;
 		dev->mmio->US_CR = US_CR_SENDA;
 		for (int i = 0; i < size; i++) {
-			while (!(dev->mmio->US_CSR & US_CSR_TXRDY)) {
-				;
-			}
+			if (wait_tx_flag(dev, US_CSR_TXRDY) != TRUE) {
+				abort_tx(dev);
+				return (-EHW);
+ 			}
 			if (dev->mmio->US_MR & US_MR_MODE9) {
 				dev->mmio->US_THR = *((uint16_t *) p_buf + i);
 			} else {
 				dev->mmio->US_THR = *((uint8_t *) p_buf + i);
 			}
 		}
-		while (!(dev->mmio->US_CSR & US_CSR_TXEMPTY)) {
-			;
-		}
+		if (wait_tx_flag(dev, US_CSR_TXEMPTY) != TRUE) {
+			abort_tx(dev);
+			return (-EHW);
+ 		}
 	}
         dev->mmio->US_CR = US_CR_TXDIS;
+#if USART_RS485_PIN_DBG == 1
+	barrier();
+	rs485_pin_dbg(dev, dev->rs485_pin_dbg.tx_end);
+#endif
         return (0);
 }
 
@@ -972,6 +1117,122 @@ static BaseType_t yit_hndlr(usart dev)
 #if USART_RX_CHAR == 1 || USART_HDLC == 1 || USART_ADR_HDLC == 1 || USART_ADR_CHAR == 1 ||\
     USART_YIT == 1
 /**
+ * wait_tx_flag
+ */
+static boolean_t wait_tx_flag(usart dev, unsigned int flag)
+{
+	unsigned int cnt = USART_TX_WAIT_CNT;
+
+	while (!(dev->mmio->US_CSR & flag)) {
+		if (!--cnt) {
+			return (FALSE);
+		}
+	}
+	return (TRUE);
+}
+
+/**
+ * abort_tx
+ */
+static void abort_tx(usart dev)
+{
+	dev->mmio->US_IDR = US_IDR_ENDTX;
+	if (dev->dma) {
+		dev->mmio->US_PTCR = US_PTCR_TXTDIS;
+		dev->mmio->US_TCR = 0;
+	}
+	dev->mmio->US_CR = US_CR_RSTTX;
+	if ((dev->mr & US_MR_USART_MODE_Msk) == US_MR_USART_MODE_RS485) {
+		dev->mmio->US_CR = US_CR_TXEN;
+	}
+	dev->mmio->US_CR = US_CR_TXDIS;
+}
+
+#if USART_RS485_PIN_DBG == 1
+/**
+ * rs485_pin_dbg
+ */
+static void rs485_pin_dbg(usart dev, unsigned int *cnt)
+{
+	unsigned int st = 0;
+
+	if ((dev->mr & US_MR_USART_MODE_Msk) != US_MR_USART_MODE_RS485) {
+		return;
+	}
+	if (((Pio *) dev->rs485_drv_cont)->PIO_PDSR & dev->rs485_drv_pin) {
+		st |= 1U;
+	}
+	if (dev->mmio->US_CSR & US_CSR_TXEMPTY) {
+		st |= 2U;
+	}
+	cnt[st]++;
+}
+#endif
+
+/**
+ * get_bdr_div
+ */
+static boolean_t get_bdr_div(unsigned int mr, unsigned int *div)
+{
+	unsigned int mode;
+
+	switch (mr & US_MR_USCLKS_Msk) {
+	case US_MR_USCLKS_MCK :
+		*div = 1U;
+		break;
+	case US_MR_USCLKS_DIV :
+		*div = 8U;
+		break;
+	default :
+		return (FALSE);
+	}
+	mode = mr & US_MR_USART_MODE_Msk;
+	if (mode == US_MR_USART_MODE_IS07816_T_0 || mode == US_MR_USART_MODE_IS07816_T_1 ||
+	    mode == US_MR_USART_MODE_SPI_MASTER || mode == US_MR_USART_MODE_SPI_SLAVE) {
+		return (FALSE);
+	}
+	if (!(mr & US_MR_SYNC)) {
+		if (mr & US_MR_OVER) {
+			*div *= 8U;
+		} else {
+			*div *= 16U;
+		}
+	}
+	return (TRUE);
+}
+
+#if USART_BDR_ADV == 1
+/**
+ * calc_brgr
+ */
+static unsigned int calc_brgr(usart dev)
+{
+	unsigned int div;
+	unsigned int den;
+	unsigned int cd;
+
+	if (dev->bdr < 1 || !get_bdr_div(dev->mr, &div)) {
+		crit_err_exit(BAD_PARAMETER);
+		return (0);
+	}
+	if ((unsigned int) dev->bdr > F_MCK / div) {
+		crit_err_exit(BAD_PARAMETER);
+		return (0);
+	}
+	den = div * (unsigned int) dev->bdr;
+	cd = (F_MCK + den / 2U) / den;
+	if (cd < 1U || cd > 0xffffU) {
+		crit_err_exit(BAD_PARAMETER);
+		return (0);
+	}
+	return (cd);
+}
+#endif
+#endif
+
+#if USART_RX_CHAR == 1 || USART_HDLC == 1 || USART_ADR_HDLC == 1 || USART_ADR_CHAR == 1 ||\
+    USART_YIT == 1
+/**
  * USART0_Handler
  */
 void USART0_Handler(void)
@@ -1013,6 +1274,27 @@ usart usart_get_dev(int id)
 #ifdef ID_USART2
 	} else if (id == ID_USART2) {
 		return (u2);
+#endif
+	} else {
+		crit_err_exit(BAD_PARAMETER);
+		return (NULL);
+	}
+}
+
+/**
+ * usart_get_name
+ */
+const char *usart_get_name(usart dev)
+{
+	if (dev == u0) {
+		return ("USART0");
+#ifdef ID_USART1
+	} else if (dev == u1) {
+		return ("USART1");
+#endif
+#ifdef ID_USART2
+	} else if (dev == u2) {
+		return ("USART2");
 #endif
 	} else {
 		crit_err_exit(BAD_PARAMETER);

@@ -28,11 +28,17 @@
 #ifndef USART_ADR_HDLC
  #define USART_ADR_HDLC 0
 #endif
+#ifndef USART_ADR_HDLC_EXT_STATS
+ #define USART_ADR_HDLC_EXT_STATS 0
+#endif
 #ifndef USART_ADR_CHAR
  #define USART_ADR_CHAR 0
 #endif
 #ifndef USART_YIT
  #define USART_YIT 0
+#endif
+#ifndef USART_RS485_PIN_DBG
+ #define USART_RS485_PIN_DBG 0
 #endif
 
 #if USART_HDLC == 1 || USART_ADR_HDLC == 1
@@ -56,7 +62,13 @@ struct hdlc_stats {
 #endif
 #endif
 
-#if USART_ADR_HDLC == 1
+#if USART_ADR_HDLC == 1 && USART_ADR_HDLC_EXT_STATS == 1
+#ifndef USART_ADR_HDLC_PERR_DUMP_SIZE
+ #error "USART_ADR_HDLC_PERR_DUMP_SIZE must be defined when USART_ADR_HDLC_EXT_STATS is enabled"
+#endif
+#if USART_ADR_HDLC_PERR_DUMP_SIZE < 1
+ #error "USART_ADR_HDLC_PERR_DUMP_SIZE must be >= 1"
+#endif
 struct adr_hdlc_ext_stats {
 	int unxp_adr_perr;     //  ADR_HDLC
         int max_adr_ovr_perr;  //  ADR_HDLC
@@ -102,6 +114,13 @@ enum usart_mode {
 
 typedef struct usart_dsc *usart;
 
+#if USART_RS485_PIN_DBG == 1
+struct usart_rs485_pin_dbg {
+	unsigned int tx_beg[4];
+	unsigned int tx_end[4];
+};
+#endif
+
 struct usart_dsc {
 	int id; // <SetIt>
 	void (*conf_pins)(boolean_t); // <SetIt>
@@ -116,6 +135,7 @@ struct usart_dsc {
         enum usart_mode mode;
 #if USART_RX_CHAR == 1 || USART_ADR_CHAR == 1
 	int rx_que_sz; // <SetIt>
+	int rx_que_ovr;
 #endif
 #if USART_RX_CHAR == 1 || USART_ADR_CHAR == 1 || USART_YIT == 1
 	QueueHandle_t rx_que;
@@ -138,10 +158,24 @@ struct usart_dsc {
 #if USART_YIT == 1
 	struct usart_yit usart_yit;
 #endif
+#if USART_RS485_PIN_DBG == 1
+	unsigned int rs485_drv_pin; // <SetIt>
+	void *rs485_drv_cont; // <SetIt>
+	struct usart_rs485_pin_dbg rs485_pin_dbg;
+#endif
 #if USART_HDLC == 1 || USART_ADR_HDLC == 1 || USART_YIT == 1
         int rcv_st;
 #endif
 	boolean_t dma;
+};
+
+struct usart_bdr_info {
+	unsigned int mr;
+	unsigned int brgr;
+	unsigned int div;
+	unsigned int req_bdr;
+	unsigned int act_bdr;
+	int err_ppm;
 };
 #endif
 
@@ -156,6 +190,11 @@ struct usart_dsc {
  * @m: USART mode (enum usart_mode).
  */
 void init_usart(usart dev, enum usart_mode m);
+
+/**
+ * usart_get_bdr_info
+ */
+boolean_t usart_get_bdr_info(usart dev, struct usart_bdr_info *info);
 #endif
 
 #if USART_RX_CHAR == 1
@@ -367,6 +406,11 @@ int usart_free_yit_cmd_num(void *dev);
  * Returns: USART device.
  */
 usart usart_get_dev(int id);
+
+/**
+ * usart_get_name
+ */
+const char *usart_get_name(usart dev);
 #endif
 
 #endif
