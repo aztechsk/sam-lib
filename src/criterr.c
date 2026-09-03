@@ -100,15 +100,15 @@ void crit_err_exit_fn(enum crit_err err, char *file, int line)
  */
 static char *fname(char *file)
 {
-	int i = 0, p = 0;
+	char *p = file;
 
-	while (*(file + i) != '\0') {
-		if (*(file + i) == '/' || *(file + i) == '\\') {
-			p = i;
+	while (*file != '\0') {
+		if (*file == '/' || *file == '\\') {
+			p = file + 1;
 		}
-		i++;
+		file++;
 	}
-	return ((p) ? file + ++p : file);
+	return (p);
 }
 #endif
 
