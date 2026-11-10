@@ -46,6 +46,9 @@
 
 #if I2CBUS == 1
 
+#include <semphr.h>
+#include <mmio.h>
+
 /**
  * @enum i2c_mode
  *
