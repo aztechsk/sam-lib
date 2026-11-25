@@ -75,7 +75,7 @@ enum pio_feat {
  * @va: List of additional pin features terminated with PIO_END_OF_FEAT
  *   (enum pio_feat).
  */
-void conf_io_pin(unsigned int pin, Pio *cont, enum pio_func func, ...);
+void conf_io_pin(unsigned int pin, Pio *cont, int func, ...);
 
 /**
  * get_pin_lev

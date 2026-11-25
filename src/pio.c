@@ -39,7 +39,7 @@ extern inline boolean_t is_pin_intr_enabled(unsigned int pin, Pio *cont);
 /**
  * conf_io_pin
  */
-void conf_io_pin(unsigned int pin, Pio *cont, enum pio_func func, ...)
+void conf_io_pin(unsigned int pin, Pio *cont, int func, ...)
 {
 	va_list ap;
         enum pio_feat feat;

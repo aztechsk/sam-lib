@@ -180,6 +180,7 @@ int spi_trans(spibus bus, spi_csel csel, void *buf0, int size0, void *buf1, int 
 		((Spi *) bus->mmio)->SPI_PTCR = SPI_PTCR_RXTEN | SPI_PTCR_TXTEN;
                 if (pdFALSE == xSemaphoreTake(bus->sig, WAIT_PDC_INTR)) {
 			((Spi *) bus->mmio)->SPI_IDR = ~0;
+			((Spi *) bus->mmio)->SPI_PTCR = SPI_PTCR_RXTDIS | SPI_PTCR_TXTDIS;
                         xSemaphoreTake(bus->sig, 0);
                         bus->stats.dma_err = 1;
 			ret = -EDMA;
