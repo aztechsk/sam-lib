@@ -95,6 +95,7 @@ void spi_hal_dev_cfg(struct spi_hal_dev *dev)
 	if (!dev->opaque) {
 		crit_err_exit(BAD_PARAMETER);
 	}
+	((struct spi_dev *) dev->opaque)->csel.mode = dev->cfg.mode;
 	((struct spi_dev *) dev->opaque)->csel.bits = spi_map_bits(dev->cfg.bits_trans);
 	((struct spi_dev *) dev->opaque)->csel.dlybct = spi_dlybct_ns(dev->cfg.dly_bct_ns);
 	((struct spi_dev *) dev->opaque)->csel.dlybs = spi_dlybs_ns(dev->cfg.dly_bcs_ns);
