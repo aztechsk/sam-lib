@@ -39,9 +39,9 @@ enum crit_err {               // L123
  * crit_err_exit
  */
 #define crit_err_exit(err) crit_err_exit_fn(err, __FILE__, __LINE__)
-void crit_err_exit_fn(enum crit_err err, char *file, int line);
+void crit_err_exit_fn(enum crit_err err, char *file, int line) __attribute__((noreturn));
 #else
-void crit_err_exit(enum crit_err err);
+void crit_err_exit(enum crit_err err) __attribute__((noreturn));
 #endif
 
 #endif

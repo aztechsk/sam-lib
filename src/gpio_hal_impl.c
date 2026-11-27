@@ -246,7 +246,6 @@ void *gpio_hal_get_ctrl(int ctrl_id)
 #endif
 	default :
 		crit_err_exit(BAD_PARAMETER);
-		return (NULL);
 	}
 }
 #endif

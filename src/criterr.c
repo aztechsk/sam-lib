@@ -37,7 +37,7 @@
 #define CRITERR_INTR_FREQ 20
 
 static volatile int intr_cnt;
-static boolean_t led1_en;
+static volatile boolean_t led1_en;
 
 #if TERMOUT == 1
 static const char err0[] = "UNEXP_PROG_STATE";
@@ -54,7 +54,7 @@ static const char *const errors[] = {err0, err1, err2, err3, err4, err5, err6, e
 #if TERMOUT == 1
 static char *fname(char *file);
 #endif
-static void crit_err(enum crit_err err);
+static void crit_err(enum crit_err err) __attribute__((noreturn));
 static void show_err(enum crit_err err);
 static void init_tc_50ms(void);
 static BaseType_t tc_hndlr(void);
@@ -90,7 +90,6 @@ void crit_err_exit_fn(enum crit_err err, char *file, int line)
 		/* FALLTHRU */
 	default :
 		crit_err(err);
-		break;
 	}
 }
 
@@ -284,4 +283,5 @@ void crit_err_exit(enum crit_err err)
 		;
 	}
 }
+
 #endif
